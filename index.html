@@ -291,7 +291,7 @@ td.aseg{color:#a03030;}
 </div>
 
 <!-- HISTORIAL -->
-<div id="tab-hist" style="flex:1;display:none;flex-direction:column;overflow:hidden;">
+<div id="tab-hist" style="flex:1;display:none;flex-direction:column;overflow-y:auto;">
   <div style="padding:14px 20px;background:white;border-bottom:1px solid #e0e0e0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
     <div>
       <h2 style="font-size:15px;color:#c0392b;">🗂 Historial de Cotizaciones</h2>
@@ -299,7 +299,7 @@ td.aseg{color:#a03030;}
     </div>
     <button onclick="limpiarHistorial()" style="padding:7px 14px;background:#e74c3c;color:white;border:none;border-radius:6px;font-size:12px;cursor:pointer;">🗑 Limpiar historial</button>
   </div>
-  <div style="flex:1;overflow-y:auto;padding:16px 20px;" id="hist-content">
+  <div style="padding:16px 20px;" id="hist-content">
     <div id="hist-empty" style="text-align:center;padding:60px 20px;color:#aaa;">
       <div style="font-size:40px">🗂</div>
       <p style="font-size:14px;margin-top:8px">Aún no hay cotizaciones guardadas.<br>Se guardan automáticamente al imprimir.</p>
