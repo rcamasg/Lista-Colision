@@ -237,8 +237,6 @@ td.aseg{color:#a03030;}
         <div class="cot-field"><label>Fecha</label><input type="date" id="cot-fecha"></div>
         <div class="cot-field"><label>Precio default</label>
           <select id="cot-precio-def" onchange="actualizarPrecioDefault()">
-            <option value="2">Precio Lista</option>
-            <option value="3">C/IVA</option>
             <option value="4">Mostrador 20</option>
             <option value="5">Mostrador 23</option>
             <option value="6">Taller 30</option>
@@ -271,6 +269,7 @@ td.aseg{color:#a03030;}
       </div>
       <div class="cot-actions">
         <button class="btn-clear" onclick="limpiarCot()">🗑 Limpiar</button>
+        <button id="btn-guardar-edicion" onclick="guardarEdicion()" style="display:none;padding:10px 20px;background:#1a7a1a;color:white;border:none;border-radius:6px;font-size:14px;cursor:pointer;font-weight:600;margin-right:8px;">💾 Guardar cambios</button>
         <button class="btn-print" onclick="imprimirCot()">🖨 Imprimir / PDF</button>
       </div>
     </div>
@@ -1054,17 +1053,58 @@ function editarCot(i){
     <button onclick="cancelarEdicion()" style="background:none;border:1px solid white;color:white;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:11px;">✕ Cancelar</button>`;
   const cotHeader = document.querySelector("#tab-cot .cot-header");
   if(cotHeader && !document.getElementById("edit-notice")) cotHeader.prepend(notice);
+  document.getElementById("btn-guardar-edicion").style.display="inline-block";
 }
 
 function cancelarEdicion(){
   window._editingHistIdx = null;
   const n = document.getElementById("edit-notice");
   if(n) n.remove();
+  document.getElementById("btn-guardar-edicion").style.display="none";
   // Clear cotizador
   cotItems = [];
   clienteSeleccionado = "";
   document.getElementById("btn-cliente").textContent = "— Selecciona o agrega cliente —";
   document.getElementById("cot-vendedor").selectedIndex = 0;
   renderCot();
+}
+
+// ====== GUARDAR EDICION SIN IMPRIMIR ======
+function guardarEdicion(){
+  if(window._editingHistIdx === null || window._editingHistIdx === undefined) return;
+  const vendedor=document.getElementById("cot-vendedor").value||"—";
+  const fecha=document.getElementById("cot-fecha").value||new Date().toISOString().split("T")[0];
+  const folio=document.getElementById("cot-folio").value||"—";
+  const WITH_IVA_P=new Set([3,4,5,6,7,8]);
+  let grandTotal=0,ivaTotal=0;
+  const items=cotItems.map(item=>{
+    let p,subBase,subConIva,ivaItem;
+    if(item.precioCol===98){
+      p=parseFloat(item.precios[3])*0.67||0;subBase=p*item.qty;subConIva=subBase;ivaItem=subBase/1.16*0.16;
+    }else if(item.precioCol===99){
+      const de=getDescEspecial(item.desc);const pct=de?de.pct:1;
+      p=parseFloat(item.precios[2])*pct||0;subBase=p*item.qty;subConIva=subBase*1.16;ivaItem=subBase*0.16;
+    }else{
+      p=parseFloat(item.precios[item.precioCol])||0;subBase=p*item.qty;
+      subConIva=WITH_IVA_P.has(item.precioCol)?subBase:subBase*1.16;
+      ivaItem=WITH_IVA_P.has(item.precioCol)?subBase/1.16*0.16:subBase*0.16;
+    }
+    grandTotal+=subConIva;ivaTotal+=ivaItem;
+    const pUnit=WITH_IVA_P.has(item.precioCol)&&item.precioCol!==98&&item.precioCol!==99?p/1.16:p;
+    return{codigo:item.codigo,desc:item.desc,qty:item.qty,precioUnit:pUnit,subtotal:subConIva,status:item.status,src:item.src};
+  });
+  const cotObj={
+    folio,cliente:clienteSeleccionado||"—",vendedor,fecha,
+    total:grandTotal,iva:ivaTotal,subtotal:grandTotal-ivaTotal,
+    savedAt:new Date().toISOString(),items
+  };
+  const h=getHistorial();
+  h[window._editingHistIdx]=cotObj;
+  saveHistorial(h);
+  window._editingHistIdx=null;
+  const n=document.getElementById("edit-notice");
+  if(n)n.remove();
+  document.getElementById("btn-guardar-edicion").style.display="none";
+  alert("✅ Cotización "+folio+" guardada correctamente.");
 }
 </script></body></html>
