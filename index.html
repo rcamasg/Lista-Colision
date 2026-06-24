@@ -661,9 +661,9 @@ function imprimirCot(){
     +"<div style='font-size:10px;color:#555'>Folio: <strong>"+folio+"</strong></div>"
     +"<div style='font-size:10px;color:#555'>Fecha: <strong>"+fecha+"</strong></div>"
     +"</div></div>"
-    +"<div style='margin-bottom:10px;background:#fdf5f5;padding:7px 10px;border-radius:4px'>"
+    +"<div style='margin-bottom:10px;background:#fdf5f5;padding:7px 10px;border-radius:4px;overflow:visible;width:100%'>"
     +"<div style='font-size:8px;color:#888;text-transform:uppercase'>Cliente</div>"
-    +"<div style='font-size:12px;font-weight:700'>"+cliente+"</div>"
+    +"<div style='font-size:12px;font-weight:700;word-break:break-word;white-space:normal'>"+cliente+"</div>"
     +"<div style='font-size:8px;color:#888;text-transform:uppercase;margin-top:3px'>Vendedor</div>"
     +"<div style='font-size:10px'>"+vendedor+"</div>"
     +"</div>"
@@ -726,7 +726,7 @@ function imprimirDesdeHistorial(cot){
     +"<div style='text-align:right'><div style='font-size:18px;font-weight:700;color:#c0392b'>COTIZACIÓN</div>"
     +"<div style='font-size:10px;color:#555'>Folio: <strong>"+cot.folio+"</strong></div>"
     +"<div style='font-size:10px;color:#555'>Fecha: <strong>"+cot.fecha+"</strong></div></div></div>"
-    +"<div style='margin-bottom:10px;background:#fdf5f5;padding:7px 10px;border-radius:4px'>"
+    +"<div style='margin-bottom:10px;background:#fdf5f5;padding:7px 10px;border-radius:4px;overflow:visible;width:100%'>"
     +"<div style='font-size:8px;color:#888;text-transform:uppercase'>Cliente</div>"
     +"<div style='font-size:12px;font-weight:700'>"+cot.cliente+"</div>"
     +"<div style='font-size:8px;color:#888;text-transform:uppercase;margin-top:3px'>Vendedor</div>"
@@ -805,8 +805,16 @@ function saveHistorial(h){localStorage.setItem("colision_historial",JSON.stringi
 
 function guardarEnHistorial(cot){
   const h=getHistorial();
-  h.unshift(cot);
-  if(h.length>200)h.pop();
+  // If editing an existing cotización, update it instead of adding new
+  if(window._editingHistIdx !== null && window._editingHistIdx !== undefined){
+    h[window._editingHistIdx] = cot;
+    window._editingHistIdx = null;
+    const n=document.getElementById("edit-notice");
+    if(n)n.remove();
+  } else {
+    h.unshift(cot);
+    if(h.length>200)h.pop();
+  }
   saveHistorial(h);
   const badge=document.getElementById("badge-hist");
   badge.textContent=h.length;
@@ -835,8 +843,9 @@ function renderHistorial(){
           <div style="font-size:11px;color:#888">${cot.items.length} artículo${cot.items.length!==1?"s":""}</div>
         </div>
       </div>
-      <div style="margin-top:8px;display:flex;gap:8px;">
+      <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
         <button onclick="verDetalleCot(${i})" style="padding:5px 12px;background:#555;color:white;border:none;border-radius:4px;font-size:11px;cursor:pointer;">👁 Ver detalle</button>
+        <button onclick="editarCot(${i})" style="padding:5px 12px;background:#1a7a1a;color:white;border:none;border-radius:4px;font-size:11px;cursor:pointer;">✏️ Editar</button>
         <button onclick="reimprimirCot(${i})" style="padding:5px 12px;background:#c0392b;color:white;border:none;border-radius:4px;font-size:11px;cursor:pointer;">🖨 Reimprimir</button>
         <button onclick="eliminarCot(${i})" style="padding:5px 12px;background:#aaa;color:white;border:none;border-radius:4px;font-size:11px;cursor:pointer;">🗑 Eliminar</button>
       </div>
@@ -908,7 +917,7 @@ function imprimirDesdeHistorial(cot){
     +"<div style='text-align:right'><div style='font-size:18px;font-weight:700;color:#c0392b'>COTIZACIÓN</div>"
     +"<div style='font-size:10px;color:#555'>Folio: <strong>"+cot.folio+"</strong></div>"
     +"<div style='font-size:10px;color:#555'>Fecha: <strong>"+cot.fecha+"</strong></div></div></div>"
-    +"<div style='margin-bottom:10px;background:#fdf5f5;padding:7px 10px;border-radius:4px'>"
+    +"<div style='margin-bottom:10px;background:#fdf5f5;padding:7px 10px;border-radius:4px;overflow:visible;width:100%'>"
     +"<div style='font-size:8px;color:#888;text-transform:uppercase'>Cliente</div>"
     +"<div style='font-size:12px;font-weight:700'>"+cot.cliente+"</div>"
     +"<div style='font-size:8px;color:#888;text-transform:uppercase;margin-top:3px'>Vendedor</div>"
@@ -1064,5 +1073,77 @@ function quitarColumna2(n){
   const badge = document.getElementById("badge2-col-"+n);
   if(badge) badge.remove();
   render2();
+}
+
+// ====== EDITAR COTIZACIÓN DESDE HISTORIAL ======
+function editarCot(i){
+  const h = getHistorial();
+  const cot = h[i];
+  if(!confirm(`¿Editar la cotización ${cot.folio}?\n\nSe cargará en el cotizador. La cotización del historial se actualizará al reimprimir.`)) return;
+
+  // Set client and vendor
+  clienteSeleccionado = cot.cliente;
+  document.getElementById("btn-cliente").textContent = cot.cliente;
+  const vendSel = document.getElementById("cot-vendedor");
+  for(let o of vendSel.options){ if(o.value===cot.vendedor){o.selected=true;break;} }
+  document.getElementById("cot-folio").value = cot.folio;
+  document.getElementById("cot-fecha").value = cot.fecha;
+
+  // Load items into cotizador
+  cotItems = cot.items.map(item=>{
+    // Find article data in DATA1 or DATA2
+    let precios = DATA1.find(r=>r[0]===item.codigo) || DATA2.find(r=>r[0]===item.codigo) || [];
+    const src = DATA1.find(r=>r[0]===item.codigo) ? "LP" : "B2";
+    const pnames = src==="LP" ? PNAMES1 : PNAMES2;
+
+    // Determine precioCol from saved precioUnit
+    let precioCol = 4; // default Mostrador 20
+    if(precios.length){
+      // Find which column matches the saved unit price (with IVA)
+      const WITH_IVA_P = new Set([3,4,5,6,7,8]);
+      for(let c=4;c<=9;c++){
+        const p = parseFloat(precios[c])||0;
+        const pUnit = WITH_IVA_P.has(c) ? p/1.16 : p;
+        if(Math.abs(pUnit - item.precioUnit) < 0.02){ precioCol=c; break; }
+      }
+    }
+
+    return {
+      codigo: item.codigo,
+      desc: item.desc,
+      precios: precios,
+      qty: item.qty,
+      precioCol: precioCol,
+      src: src,
+      pnames: pnames,
+      status: item.status
+    };
+  });
+
+  // Store the historial index being edited
+  window._editingHistIdx = i;
+
+  renderCot();
+  switchTab("cot");
+  // Show notice
+  const notice = document.createElement("div");
+  notice.id = "edit-notice";
+  notice.style.cssText = "background:#1a7a1a;color:white;padding:8px 14px;font-size:12px;border-radius:6px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;";
+  notice.innerHTML = `<span>✏️ Editando cotización <strong>${cot.folio}</strong> — Al imprimir se actualizará en el historial</span>
+    <button onclick="cancelarEdicion()" style="background:none;border:1px solid white;color:white;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:11px;">✕ Cancelar</button>`;
+  const cotHeader = document.querySelector("#tab-cot .cot-header");
+  if(cotHeader && !document.getElementById("edit-notice")) cotHeader.prepend(notice);
+}
+
+function cancelarEdicion(){
+  window._editingHistIdx = null;
+  const n = document.getElementById("edit-notice");
+  if(n) n.remove();
+  // Clear cotizador
+  cotItems = [];
+  clienteSeleccionado = "";
+  document.getElementById("btn-cliente").textContent = "— Selecciona o agrega cliente —";
+  document.getElementById("cot-vendedor").selectedIndex = 0;
+  renderCot();
 }
 </script></body></html>
