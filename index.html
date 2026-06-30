@@ -235,16 +235,7 @@ td.aseg{color:#a03030;}
           <input type="text" id="cot-folio" readonly style="background:#f9f9f9;color:#555">
         </div>
         <div class="cot-field"><label>Fecha</label><input type="date" id="cot-fecha"></div>
-        <div class="cot-field"><label>Precio default</label>
-          <select id="cot-precio-def" onchange="actualizarPrecioDefault()">
-            <option value="4">Mostrador 20</option>
-            <option value="5">Mostrador 23</option>
-            <option value="6">Taller 30</option>
-            <option value="7">Taller 31</option>
-            <option value="8">Taller Especial 32</option>
-            <option value="9">Aseguradora 34</option>
-          </select>
-        </div>
+        
       </div>
     </div>
     <div class="cot-items">
@@ -468,8 +459,8 @@ function getPrecioOpts(src,sel,desc){
   const pn=src==="LP"?PNAMES1:PNAMES2;
   let opts=(src==="LP"?[4,5,6,7,8,9]:[4,5,6,7,8,9]).map(c=>`<option value="${c}"${c===sel?" selected":""}>${pn[c]}</option>`).join("");
   if(src==="LP"){
-    // Desc. 33% for all LP articles (no lock)
     opts+=`<option value="98"${sel===98?" selected":""}>Desc. 33%</option>`;
+    opts+=`<option value="97"${sel===97?" selected":""}>Desc. 26%</option>`;
     const de=getDescEspecial(desc||"");
     if(de) opts+=`<option value="99"${sel===99?" selected":""}>${de.label}</option>`;
   }
@@ -482,7 +473,7 @@ function addItem(src,idx){
   const pnames=src===1?PNAMES1:PNAMES2;
   const qty=parseInt(document.getElementById("q"+src+"i"+idx)?.value)||1;
   const r=fd[idx];
-  const defCol=parseInt(document.getElementById("cot-precio-def")?.value)||4;
+  const defCol=4;
   const ex=cotItems.find(x=>x.codigo===r[0]&&x.src===srcLabel);
   if(ex){ex.qty+=qty;}
   else{cotItems.push({codigo:r[0],desc:r[1],precios:r,qty,precioCol:defCol,src:srcLabel,pnames,status:"Disponible",descEsp:null});}
@@ -511,8 +502,13 @@ function renderCot(){
   document.getElementById("cot-tbody").innerHTML=cotItems.map((item,i)=>{
     let p,subBase,subTotal,ivaItem,pSinIva;
     if(item.precioCol===98){
-      // Desc. 33%: C/IVA * 0.67 (already has IVA)
       p=parseFloat(item.precios[3])*0.67||0;
+      subBase=p*item.qty;
+      subTotal=subBase;
+      ivaItem=subBase/1.16*0.16;
+      pSinIva=p/1.16;
+    } else if(item.precioCol===97){
+      p=parseFloat(item.precios[3])*0.74||0;
       subBase=p*item.qty;
       subTotal=subBase;
       ivaItem=subBase/1.16*0.16;
@@ -615,6 +611,8 @@ function imprimirCot(){
     let p,subBase,subConIva,ivaItem;
     if(item.precioCol===98){
       p=parseFloat(item.precios[3])*0.67||0;subBase=p*item.qty;subConIva=subBase;ivaItem=subBase/1.16*0.16;
+    }else if(item.precioCol===97){
+      p=parseFloat(item.precios[3])*0.74||0;subBase=p*item.qty;subConIva=subBase;ivaItem=subBase/1.16*0.16;
     }else if(item.precioCol===99){
       const de=getDescEspecial(item.desc);const pct=de?de.pct:1;
       p=parseFloat(item.precios[2])*pct||0;subBase=p*item.qty;subConIva=subBase*1.16;ivaItem=subBase*0.16;
@@ -1086,6 +1084,8 @@ function guardarEdicion(){
     let p,subBase,subConIva,ivaItem;
     if(item.precioCol===98){
       p=parseFloat(item.precios[3])*0.67||0;subBase=p*item.qty;subConIva=subBase;ivaItem=subBase/1.16*0.16;
+    }else if(item.precioCol===97){
+      p=parseFloat(item.precios[3])*0.74||0;subBase=p*item.qty;subConIva=subBase;ivaItem=subBase/1.16*0.16;
     }else if(item.precioCol===99){
       const de=getDescEspecial(item.desc);const pct=de?de.pct:1;
       p=parseFloat(item.precios[2])*pct||0;subBase=p*item.qty;subConIva=subBase*1.16;ivaItem=subBase*0.16;
