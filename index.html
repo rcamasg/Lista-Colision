@@ -262,6 +262,7 @@ td.aseg{color:#a03030;}
         <button class="btn-clear" onclick="limpiarCot()">🗑 Limpiar</button>
         <button id="btn-guardar-edicion" onclick="guardarEdicion()" style="display:none;padding:10px 20px;background:#1a7a1a;color:white;border:none;border-radius:6px;font-size:14px;cursor:pointer;font-weight:600;margin-right:8px;">💾 Guardar cambios</button>
         <button class="btn-print" onclick="imprimirCot()">🖨 Imprimir / PDF</button>
+        <button class="btn-email" onclick="enviarCorreo()" style="padding:10px 20px;background:#1a56a0;color:white;border:none;border-radius:6px;font-size:14px;cursor:pointer;font-weight:600;">📧 Enviar por correo</button>
       </div>
     </div>
   </div>
@@ -1111,5 +1112,53 @@ function guardarEdicion(){
   if(n)n.remove();
   document.getElementById("btn-guardar-edicion").style.display="none";
   alert("✅ Cotización "+folio+" guardada correctamente.");
+}
+
+// ====== ENVIAR POR CORREO ======
+function enviarCorreo(){
+  const folio=document.getElementById("cot-folio").value||"—";
+  const fecha=document.getElementById("cot-fecha").value||"—";
+  const vendedor=document.getElementById("cot-vendedor").value||"—";
+  const cliente=clienteSeleccionado||"—";
+  if(!cotItems.length){alert("Agrega artículos a la cotización antes de enviar.");return;}
+
+  const WITH_IVA_P=new Set([3,4,5,6,7,8]);
+  let grandTotal=0,ivaTotal=0;
+
+  let lineas=cotItems.map((item,i)=>{
+    let p,subBase,subConIva,ivaItem;
+    if(item.precioCol===98){p=parseFloat(item.precios[3])*0.67||0;subBase=p*item.qty;subConIva=subBase;ivaItem=subBase/1.16*0.16;}
+    else if(item.precioCol===97){p=parseFloat(item.precios[3])*0.74||0;subBase=p*item.qty;subConIva=subBase;ivaItem=subBase/1.16*0.16;}
+    else if(item.precioCol===99){const de=getDescEspecial(item.desc);const pct=de?de.pct:1;p=parseFloat(item.precios[2])*pct||0;subBase=p*item.qty;subConIva=subBase*1.16;ivaItem=subBase*0.16;}
+    else{p=parseFloat(item.precios[item.precioCol])||0;subBase=p*item.qty;subConIva=WITH_IVA_P.has(item.precioCol)?subBase:subBase*1.16;ivaItem=WITH_IVA_P.has(item.precioCol)?subBase/1.16*0.16:subBase*0.16;}
+    grandTotal+=subConIva;ivaTotal+=ivaItem;
+    const pUnit=WITH_IVA_P.has(item.precioCol)&&item.precioCol!==98&&item.precioCol!==97&&item.precioCol!==99?p/1.16:p;
+    return `${i+1}. [${item.codigo}] ${item.desc}\n   Cant: ${item.qty}  P.Unit: ${fmt(pUnit)}  Importe: ${fmt(subConIva)}  Estado: ${item.status}`;
+  }).join("\n\n");
+
+  const subtotal=grandTotal-ivaTotal;
+  const cuerpo=
+    `Estimado cliente,\n\n`+
+    `Adjunto encontrará la cotización solicitada:\n\n`+
+    `════════════════════════════════\n`+
+    `REFACCIONARIA LA COLISIÓN\n`+
+    `Folio: ${folio}   Fecha: ${fecha}\n`+
+    `Cliente: ${cliente}\n`+
+    `Vendedor: ${vendedor}\n`+
+    `════════════════════════════════\n\n`+
+    `ARTÍCULOS:\n\n`+
+    lineas+
+    `\n\n════════════════════════════════\n`+
+    `Subtotal:  ${fmt(subtotal)}\n`+
+    `IVA 16%:   ${fmt(ivaTotal)}\n`+
+    `TOTAL:     ${fmt(grandTotal)}\n`+
+    `════════════════════════════════\n\n`+
+    `Esta cotización tiene una vigencia de 7 días naturales.\n`+
+    `Este documento es únicamente una cotización informativa y no es válido para la entrega de mercancía.\n\n`+
+    `Refaccionaria La Colisión — Todo para su auto chocado`;
+
+  const asunto=`Cotización ${folio} — Refaccionaria La Colisión`;
+  const mailto=`mailto:?subject=${encodeURIComponent(asunto)}&body=${encodeURIComponent(cuerpo)}`;
+  window.location.href=mailto;
 }
 </script></body></html>
