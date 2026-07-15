@@ -1159,6 +1159,6 @@ function enviarCorreo(){
 
   const asunto=`Cotización ${folio} — Refaccionaria La Colisión`;
   const mailto=`mailto:?subject=${encodeURIComponent(asunto)}&body=${encodeURIComponent(cuerpo)}`;
-  window.location.href=mailto;
+  window.open(mailto,"_self");
 }
 </script></body></html>
