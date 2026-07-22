@@ -805,8 +805,14 @@ function guardarEnHistorial(cot){
     const n=document.getElementById("edit-notice");
     if(n)n.remove();
   } else {
-    h.unshift(cot);
-    if(h.length>200)h.pop();
+    // Check if folio already exists to avoid duplicates
+    const existIdx=h.findIndex(c=>c.folio===cot.folio);
+    if(existIdx!==-1){
+      h[existIdx]=cot;
+    } else {
+      h.unshift(cot);
+      if(h.length>200)h.pop();
+    }
   }
   saveHistorial(h);
   const badge=document.getElementById("badge-hist");
@@ -881,9 +887,12 @@ function verDetalleCot(i){
       </tr></thead><tbody>${rows}</tbody>
     </table>
     </div>
-    <div style="text-align:right;margin-top:6px;font-size:11px;color:#555">Subtotal: <strong>${fmt(sub)}</strong></div>
-    <div style="text-align:right;font-size:11px;color:#555">IVA 16%: <strong>${fmt(iva)}</strong></div>
-    <div style="text-align:right;font-size:14px;font-weight:700;color:#c0392b;border-top:1px solid #c0392b;padding-top:5px;margin-top:4px">TOTAL: ${fmt(cot.total)}</div>`;
+    <table style="width:100%;border-collapse:collapse;margin-top:6px;font-size:11px">
+      <colgroup><col style="width:4%"><col style="width:13%"><col style="width:auto"><col style="width:6%"><col style="width:13%"><col style="width:13%"><col style="width:10%"></colgroup>
+      <tr><td colspan=4></td><td style="text-align:right;padding:2px 6px;color:#555">Subtotal:</td><td style="text-align:right;padding:2px 6px;color:#555"><strong>${fmt(sub)}</strong></td><td></td></tr>
+      <tr><td colspan=4></td><td style="text-align:right;padding:2px 6px;color:#555">IVA 16%:</td><td style="text-align:right;padding:2px 6px;color:#555"><strong>${fmt(iva)}</strong></td><td></td></tr>
+      <tr><td colspan=4></td><td style="text-align:right;font-weight:700;border-top:1px solid #c0392b;padding:4px 6px">TOTAL:</td><td style="text-align:right;font-size:14px;font-weight:700;color:#c0392b;border-top:1px solid #c0392b;padding:4px 6px">${fmt(cot.total)}</td><td style="border-top:1px solid #c0392b"></td></tr>
+    </table>`;
   document.getElementById("modal-detalle-cot").classList.add("open");
 }
 function cerrarDetalleCot(){document.getElementById("modal-detalle-cot").classList.remove("open");}
