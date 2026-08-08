@@ -277,9 +277,10 @@ td.aseg{color:#a03030;}
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
       <button onclick="respaldar()" style="padding:7px 14px;background:#27ae60;color:white;border:none;border-radius:6px;font-size:12px;cursor:pointer;">💾 Respaldar</button>
+      <button onclick="copiarRespaldo()" style="padding:7px 14px;background:#16a085;color:white;border:none;border-radius:6px;font-size:12px;cursor:pointer;">📋 Copiar respaldo</button>
       <button onclick="document.getElementById('restaurar-file').click()" style="padding:7px 14px;background:#2980b9;color:white;border:none;border-radius:6px;font-size:12px;cursor:pointer;">📂 Restaurar</button>
       <button onclick="limpiarHistorial()" style="padding:7px 14px;background:#e74c3c;color:white;border:none;border-radius:6px;font-size:12px;cursor:pointer;">🗑 Limpiar historial</button>
-      <input type="file" id="restaurar-file" accept=".json,application/json" style="display:none" onchange="restaurar(event)">
+      <input type="file" id="restaurar-file" accept=".txt,.json,text/plain,application/json" style="display:none" onchange="restaurar(event)">
     </div>
   </div>
   <div id="aviso-respaldo" style="display:none;margin:12px 20px 0;padding:10px 14px;background:#fdf3e3;border:1px solid #f0c987;border-left:4px solid #e67e22;border-radius:6px;font-size:12.5px;color:#8a5a1a;"></div>
@@ -824,15 +825,56 @@ function respaldar(){
     clientes:clientes
   };
   const f=new Date();
-  const nombre="Respaldo_Colision_"+f.getFullYear()+"-"+String(f.getMonth()+1).padStart(2,"0")+"-"+String(f.getDate()).padStart(2,"0")+".json";
-  const blob=new Blob([JSON.stringify(datos,null,1)],{type:"application/json"});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement("a");
-  a.href=url;a.download=nombre;document.body.appendChild(a);a.click();
-  document.body.removeChild(a);setTimeout(()=>URL.revokeObjectURL(url),3000);
+  const nombre="Respaldo_Colision_"+f.getFullYear()+"-"+String(f.getMonth()+1).padStart(2,"0")+"-"+String(f.getDate()).padStart(2,"0")+".txt";
+  const texto=JSON.stringify(datos);
+  let ok=false;
+  try{
+    const a=document.createElement("a");
+    a.href="data:text/plain;charset=utf-8,"+encodeURIComponent(texto);
+    a.download=nombre;a.style.display="none";
+    document.body.appendChild(a);a.click();document.body.removeChild(a);
+    ok=true;
+  }catch(e){ok=false;}
+  if(ok){
+    localStorage.setItem("colision_respaldo",JSON.stringify({fecha:datos.fecha,n:h.length}));
+    avisoRespaldo();
+    alert("Respaldo descargado:\n"+nombre+"\n\n"+h.length+" cotización(es) y "+clientes.length+" cliente(s).\n\nRevisa tu carpeta de Descargas y guárdalo en una USB, Drive o correo.\n\nSi el archivo no aparece completo, usa el botón Respaldar y elige \"Copiar respaldo\".");
+  }else{
+    respaldoManual(texto,nombre);
+  }
+}
+
+function respaldoManual(texto,nombre){
+  const ov=document.createElement("div");
+  ov.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;";
+  ov.innerHTML="<div style=\"background:white;border-radius:10px;max-width:640px;width:100%;padding:20px;\">"
+    +"<h3 style='color:#c0392b;font-size:16px;margin-bottom:6px'>Respaldo manual</h3>"
+    +"<p style='font-size:12.5px;color:#666;margin-bottom:10px'>Copia todo este texto y pégalo en un archivo de Bloc de notas llamado <strong>"+nombre+"</strong>. Ese archivo sirve para restaurar.</p>"
+    +"<textarea id='resp-txt' readonly style='width:100%;height:220px;font-family:monospace;font-size:11px;border:1px solid #ccc;border-radius:6px;padding:8px'></textarea>"
+    +"<div style='margin-top:12px;display:flex;gap:8px;justify-content:flex-end'>"
+    +"<button id='resp-copiar' style='padding:8px 16px;background:#27ae60;color:white;border:none;border-radius:6px;font-size:13px;cursor:pointer'>Copiar todo</button>"
+    +"<button id='resp-cerrar' style='padding:8px 16px;background:#888;color:white;border:none;border-radius:6px;font-size:13px;cursor:pointer'>Cerrar</button>"
+    +"</div></div>";
+  document.body.appendChild(ov);
+  const ta=ov.querySelector("#resp-txt");ta.value=texto;
+  ov.querySelector("#resp-copiar").onclick=function(){
+    ta.select();ta.setSelectionRange(0,texto.length);
+    let hecho=false;
+    try{hecho=document.execCommand("copy");}catch(e){}
+    this.textContent=hecho?"✓ Copiado":"Selecciona y usa Ctrl+C";
+  };
+  ov.querySelector("#resp-cerrar").onclick=function(){document.body.removeChild(ov);};
+}
+
+function copiarRespaldo(){
+  const h=getHistorial();
+  const datos={app:"Refaccionaria La Colision - Buscador y Cotizador",version:1,
+    fecha:new Date().toISOString(),folio:parseInt(localStorage.getItem("colision_folio")||"1"),
+    historial:h,clientes:clientes};
+  const f=new Date();
+  respaldoManual(JSON.stringify(datos),"Respaldo_Colision_"+f.getFullYear()+"-"+String(f.getMonth()+1).padStart(2,"0")+"-"+String(f.getDate()).padStart(2,"0")+".txt");
   localStorage.setItem("colision_respaldo",JSON.stringify({fecha:datos.fecha,n:h.length}));
   avisoRespaldo();
-  alert("Respaldo descargado:\n"+nombre+"\n\n"+h.length+" cotización(es) y "+clientes.length+" cliente(s).\n\nGuárdalo en un lugar seguro (memoria USB, Drive o correo).");
 }
 
 function restaurar(ev){
