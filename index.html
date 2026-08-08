@@ -233,8 +233,8 @@ td.aseg{color:#a03030;}
           <button class="btn-cliente-pick" id="btn-cliente" onclick="abrirClientes()">— Selecciona o agrega cliente —</button>
         </div>
         <div class="cot-field">
-          <label>Folio <span style="font-size:10px;color:#aaa;font-weight:400;cursor:pointer" onclick="editarFolio()">(editar)</span></label>
-          <input type="text" id="cot-folio" readonly style="background:#f9f9f9;color:#555">
+          <label>Folio <span style="font-size:10px;color:#c0392b;font-weight:600;cursor:pointer;text-decoration:underline" onclick="editarFolio()">✏️ editar</span></label>
+          <input type="text" id="cot-folio" readonly title="Haz clic para cambiar el número de folio" onclick="editarFolio()" style="background:#f9f9f9;color:#555;cursor:pointer">
         </div>
         <div class="cot-field"><label>Fecha</label><input type="date" id="cot-fecha"></div>
         
@@ -275,8 +275,14 @@ td.aseg{color:#a03030;}
       <h2 style="font-size:15px;color:#c0392b;">🗂 Historial de Cotizaciones</h2>
       <p style="font-size:12px;color:#888;margin-top:3px;">Guardadas en este navegador</p>
     </div>
-    <button onclick="limpiarHistorial()" style="padding:7px 14px;background:#e74c3c;color:white;border:none;border-radius:6px;font-size:12px;cursor:pointer;">🗑 Limpiar historial</button>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button onclick="respaldar()" style="padding:7px 14px;background:#27ae60;color:white;border:none;border-radius:6px;font-size:12px;cursor:pointer;">💾 Respaldar</button>
+      <button onclick="document.getElementById('restaurar-file').click()" style="padding:7px 14px;background:#2980b9;color:white;border:none;border-radius:6px;font-size:12px;cursor:pointer;">📂 Restaurar</button>
+      <button onclick="limpiarHistorial()" style="padding:7px 14px;background:#e74c3c;color:white;border:none;border-radius:6px;font-size:12px;cursor:pointer;">🗑 Limpiar historial</button>
+      <input type="file" id="restaurar-file" accept=".json,application/json" style="display:none" onchange="restaurar(event)">
+    </div>
   </div>
+  <div id="aviso-respaldo" style="display:none;margin:12px 20px 0;padding:10px 14px;background:#fdf3e3;border:1px solid #f0c987;border-left:4px solid #e67e22;border-radius:6px;font-size:12.5px;color:#8a5a1a;"></div>
   <div style="flex:1;overflow-y:auto;padding:16px 20px;" id="hist-content">
     <div id="hist-empty" style="text-align:center;padding:20px;color:#aaa;display:none;">
       <div style="font-size:40px">🗂</div>
@@ -590,13 +596,20 @@ document.getElementById("modal-clientes").addEventListener("click",function(e){i
 // FOLIO
 function editarFolio(){
   const inp=document.getElementById("cot-folio");
-  inp.readOnly=false;inp.style.background="white";inp.style.color="#222";inp.focus();
-  inp.onblur=function(){
-    const num=parseInt(this.value.replace(/[^0-9]/g,""))||1;
+  if(!inp.readOnly)return;
+  inp.readOnly=false;
+  inp.style.background="#fffbe6";inp.style.color="#222";inp.style.cursor="text";
+  inp.value=String(parseInt((inp.value||"").replace(/[^0-9]/g,""))||1);
+  inp.focus();inp.select();
+  const cerrar=function(){
+    const num=parseInt(inp.value.replace(/[^0-9]/g,""))||1;
     localStorage.setItem("colision_folio",String(num));
-    this.value="COT-"+String(num).padStart(3,"0");
-    this.readOnly=true;this.style.background="#f9f9f9";this.style.color="#555";
+    inp.value="COT-"+String(num).padStart(3,"0");
+    inp.readOnly=true;inp.style.background="#f9f9f9";inp.style.color="#555";inp.style.cursor="pointer";
+    inp.onblur=null;inp.onkeydown=null;
   };
+  inp.onblur=cerrar;
+  inp.onkeydown=function(e){if(e.key==="Enter"){e.preventDefault();inp.blur();}};
 }
 
 // IMPRIMIR
@@ -796,6 +809,90 @@ document.getElementById("img-modal-overlay").addEventListener("click",function(e
 function getHistorial(){return JSON.parse(localStorage.getItem("colision_historial")||"[]");}
 function saveHistorial(h){localStorage.setItem("colision_historial",JSON.stringify(h));}
 
+// ====== RESPALDO / RESTAURACION ======
+function getUltimoRespaldo(){try{return JSON.parse(localStorage.getItem("colision_respaldo")||"null");}catch(e){return null;}}
+
+function respaldar(){
+  const h=getHistorial();
+  if(!h.length&&!clientes.length){alert("No hay nada que respaldar todavía.");return;}
+  const datos={
+    app:"Refaccionaria La Colision - Buscador y Cotizador",
+    version:1,
+    fecha:new Date().toISOString(),
+    folio:parseInt(localStorage.getItem("colision_folio")||"1"),
+    historial:h,
+    clientes:clientes
+  };
+  const f=new Date();
+  const nombre="Respaldo_Colision_"+f.getFullYear()+"-"+String(f.getMonth()+1).padStart(2,"0")+"-"+String(f.getDate()).padStart(2,"0")+".json";
+  const blob=new Blob([JSON.stringify(datos,null,1)],{type:"application/json"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url;a.download=nombre;document.body.appendChild(a);a.click();
+  document.body.removeChild(a);setTimeout(()=>URL.revokeObjectURL(url),3000);
+  localStorage.setItem("colision_respaldo",JSON.stringify({fecha:datos.fecha,n:h.length}));
+  avisoRespaldo();
+  alert("Respaldo descargado:\n"+nombre+"\n\n"+h.length+" cotización(es) y "+clientes.length+" cliente(s).\n\nGuárdalo en un lugar seguro (memoria USB, Drive o correo).");
+}
+
+function restaurar(ev){
+  const file=ev.target.files&&ev.target.files[0];
+  ev.target.value="";
+  if(!file)return;
+  const fr=new FileReader();
+  fr.onload=function(){
+    let d;
+    try{d=JSON.parse(fr.result);}catch(e){alert("El archivo no es un respaldo válido.");return;}
+    if(!d||!Array.isArray(d.historial)){alert("El archivo no tiene el formato de un respaldo del cotizador.");return;}
+    const actual=getHistorial();
+    const fechaResp=d.fecha?new Date(d.fecha).toLocaleString("es-MX"):"sin fecha";
+    if(!confirm("Respaldo del "+fechaResp+"\n\nContiene "+d.historial.length+" cotización(es) y "+((d.clientes||[]).length)+" cliente(s).\n\nSe agregarán al historial actual ("+actual.length+"). Las cotizaciones que ya existan NO se duplican ni se sobrescriben.\n\n¿Continuar?"))return;
+
+    // fusionar cotizaciones por folio (no pisa las existentes)
+    const folios=new Set(actual.map(c=>c.folio));
+    let nuevas=0;
+    d.historial.forEach(c=>{if(c&&c.folio&&!folios.has(c.folio)){actual.push(c);folios.add(c.folio);nuevas++;}});
+    actual.sort((a,b)=>String(b.savedAt||b.fecha||"").localeCompare(String(a.savedAt||a.fecha||"")));
+    if(actual.length>500)actual.length=500;
+    saveHistorial(actual);
+
+    // fusionar clientes
+    let nc=0;
+    (d.clientes||[]).forEach(c=>{if(c&&clientes.indexOf(c)===-1){clientes.push(c);nc++;}});
+    if(nc){clientes.sort();guardarClientes();}
+
+    // folio: conservar el mayor
+    const folioActual=parseInt(localStorage.getItem("colision_folio")||"1");
+    const folioResp=parseInt(d.folio||1);
+    let msgFolio="";
+    if(folioResp>folioActual){
+      localStorage.setItem("colision_folio",String(folioResp));
+      const inp=document.getElementById("cot-folio");
+      if(inp)inp.value="COT-"+String(folioResp).padStart(3,"0");
+      msgFolio="\nFolio restaurado: COT-"+String(folioResp).padStart(3,"0");
+    }
+    renderHistorial();
+    alert("Restauración terminada.\n\nCotizaciones agregadas: "+nuevas+"\nClientes agregados: "+nc+msgFolio);
+  };
+  fr.onerror=function(){alert("No se pudo leer el archivo.");};
+  fr.readAsText(file);
+}
+
+function avisoRespaldo(){
+  const el=document.getElementById("aviso-respaldo");
+  if(!el)return;
+  const h=getHistorial();
+  const r=getUltimoRespaldo();
+  if(!h.length){el.style.display="none";return;}
+  let pend;
+  if(!r){pend=h.length;}
+  else{pend=h.filter(c=>!c.savedAt||c.savedAt>r.fecha).length;}
+  if(pend<5){el.style.display="none";return;}
+  const cuando=r?("Último respaldo: "+new Date(r.fecha).toLocaleDateString("es-MX")):"Aún no has hecho ningún respaldo.";
+  el.innerHTML="⚠️ <strong>"+pend+" cotización(es) sin respaldar.</strong> "+cuando+" &nbsp;<a href=\"javascript:respaldar()\" style=\"color:#c0392b;font-weight:600\">Respaldar ahora</a>";
+  el.style.display="block";
+}
+
 function guardarEnHistorial(cot){
   const h=getHistorial();
   // If editing an existing cotización, update it instead of adding new
@@ -824,6 +921,7 @@ function renderHistorial(){
   const h=getHistorial();
   const badge=document.getElementById("badge-hist");
   badge.textContent=h.length;badge.style.display=h.length>0?"inline":"none";
+  avisoRespaldo();
   const empty=document.getElementById("hist-empty");
   const lista=document.getElementById("hist-lista");
   if(!h.length){empty.style.display="block";lista.innerHTML="";return;}
