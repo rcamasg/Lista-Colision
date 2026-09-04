@@ -93,11 +93,11 @@ td.aseg{color:#a03030;}
 .modal-list{max-height:260px;overflow-y:auto;border:1px solid #eee;border-radius:6px;}
 .modal-item{padding:10px 14px;cursor:pointer;font-size:13px;border-bottom:1px solid #f0f0f0;}
 .modal-item:hover{background:#fdecea;color:#c0392b;}
+.modal-footer{display:flex;justify-content:flex-end;margin-top:14px;}
+.modal-footer button{padding:8px 18px;background:#aaa;color:white;border:none;border-radius:6px;font-size:13px;cursor:pointer;}
 .modal-add{display:flex;gap:8px;margin-top:10px;}
 .modal-add input{flex:1;padding:8px 12px;border:1px solid #ccc;border-radius:6px;font-size:13px;}
 .modal-add button{padding:8px 14px;background:#27ae60;color:white;border:none;border-radius:6px;font-size:13px;cursor:pointer;}
-.modal-footer{display:flex;justify-content:flex-end;margin-top:14px;}
-.modal-footer button{padding:8px 18px;background:#aaa;color:white;border:none;border-radius:6px;font-size:13px;cursor:pointer;}
 #print-area{display:none;}
 .col-badge{display:inline-flex;align-items:center;gap:4px;padding:4px 8px;background:#e8f0fb;color:#1a56a0;border-radius:4px;font-size:12px;font-weight:500;}
 .col-badge button{background:none;border:none;color:#c0392b;cursor:pointer;font-size:13px;padding:0;line-height:1;}
@@ -589,6 +589,9 @@ function agregarCliente(){
   const inp=document.getElementById("nuevo-cliente");
   const n=inp.value.trim().toUpperCase();
   if(!n)return;
+  const pass=prompt("Se requiere contraseña para agregar un cliente nuevo:");
+  if(pass===null)return;
+  if(pass!=="Dash-"){alert("Contraseña incorrecta.");return;}
   if(!clientes.includes(n)){clientes.push(n);clientes.sort();guardarClientes();}
   inp.value="";selCliente(n);
 }
