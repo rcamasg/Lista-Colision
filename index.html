@@ -455,6 +455,7 @@ function buscar2(){
 document.getElementById("wrap2").addEventListener("scroll",function(){if(this.scrollTop+this.clientHeight>=this.scrollHeight-80&&s2<f2.length){s2+=200;render2();}});
 
 // COTIZADOR ÚNICO
+function stLbl(x){return x==="Pedido"?"Sobre Pedido":x;}
 let cotItems=[];
 
 function getDescEspecial(desc){
@@ -544,7 +545,7 @@ function renderCot(){
       <td><select class=cot-precio-sel onchange="chgPrecioConCandado(${i},this.value,this)">${getPrecioOpts(item.src,item.precioCol,item.desc)}</select></td>
       <td class=num>${fmt(pSinIva)}</td>
       <td class="num" style="font-weight:700">${fmt(subTotal)}</td>
-      <td><select class=cot-status-sel onchange="chgStatus(${i},this.value)"><option value="Disponible"${item.status==="Disponible"?" selected":""}>Disponible</option><option value="Pedido"${item.status==="Pedido"?" selected":""}>Pedido</option></select></td>
+      <td><select class=cot-status-sel onchange="chgStatus(${i},this.value)"><option value="Disponible"${item.status==="Disponible"?" selected":""}>Disponible</option><option value="Sobre Pedido"${(item.status==="Sobre Pedido"||item.status==="Pedido")?" selected":""}>Sobre Pedido</option></select></td>
       <td><button class=btn-del onclick="delItem(${i})">✕</button></td>
     </tr>`;
   }).join("");
@@ -640,7 +641,7 @@ function imprimirCot(){
     }
     grandTotal+=subConIva;ivaTotal+=ivaItem;
     const pUnit=item.precioCol===98?p/1.16:(item.precioCol===99?p:(WITH_IVA_P.has(item.precioCol)?p/1.16:p));
-    const sc=item.status==="Pedido"?"#e67e22":"#27ae60";
+    const sc=(item.status==="Sobre Pedido"||item.status==="Pedido")?"#e67e22":"#27ae60";
     const bg=i%2===0?"#fff":"#f9f9f9";
     return "<tr style='background:"+bg+"'>"
       +"<td style='padding:4px 3px;border-bottom:1px solid #eee;text-align:center;font-size:9px'>"+(i+1)+"</td>"
@@ -649,7 +650,7 @@ function imprimirCot(){
       +"<td style='padding:4px 3px;border-bottom:1px solid #eee;text-align:center;font-size:9px'>"+item.qty+"</td>"
       +"<td style='padding:4px 3px;border-bottom:1px solid #eee;text-align:right;font-size:9px'>"+fmt(pUnit)+"</td>"
       +"<td style='padding:4px 3px;border-bottom:1px solid #eee;text-align:right;font-weight:700;font-size:9px'>"+fmt(subConIva)+"</td>"
-      +"<td style='padding:4px 3px;border-bottom:1px solid #eee;text-align:center;font-size:8px;color:"+sc+";font-weight:600'>"+item.status+"</td>"
+      +"<td style='padding:4px 3px;border-bottom:1px solid #eee;text-align:center;font-size:8px;color:"+sc+";font-weight:600'>"+stLbl(item.status)+"</td>"
       +"</tr>";
   }).join("");
   const iva=ivaTotal,subtotal=grandTotal-ivaTotal;
@@ -727,7 +728,7 @@ function imprimirDesdeHistorial(cot){
   const iva=cot.iva||cot.total*0.16/1.16;
   const sub=cot.subtotal||cot.total-iva;
   const filas=cot.items.map((item,i)=>{
-    const sc=item.status==="Pedido"?"#e67e22":"#27ae60";
+    const sc=(item.status==="Sobre Pedido"||item.status==="Pedido")?"#e67e22":"#27ae60";
     const bg=i%2===0?"#fff":"#f9f9f9";
     return "<tr style='background:"+bg+"'>"
       +"<td style='padding:4px 3px;border-bottom:1px solid #eee;text-align:center;font-size:9px'>"+(i+1)+"</td>"
@@ -736,7 +737,7 @@ function imprimirDesdeHistorial(cot){
       +"<td style='padding:4px 3px;border-bottom:1px solid #eee;text-align:center;font-size:9px'>"+item.qty+"</td>"
       +"<td style='padding:4px 3px;border-bottom:1px solid #eee;text-align:right;font-size:9px'>"+fmt(item.precioUnit||item.subtotal/item.qty/1.16)+"</td>"
       +"<td style='padding:4px 3px;border-bottom:1px solid #eee;text-align:right;font-weight:700;font-size:9px'>"+fmt(item.subtotal)+"</td>"
-      +"<td style='padding:4px 3px;border-bottom:1px solid #eee;text-align:center;font-size:8px;color:"+sc+";font-weight:600'>"+item.status+"</td>"
+      +"<td style='padding:4px 3px;border-bottom:1px solid #eee;text-align:center;font-size:8px;color:"+sc+";font-weight:600'>"+stLbl(item.status)+"</td>"
       +"</tr>";
   }).join("");
   const printHtml="<!DOCTYPE html><html><head><meta charset='UTF-8'><style>"
@@ -999,7 +1000,7 @@ function verDetalleCot(i){
   const iva=cot.iva||cot.total*0.16/1.16;
   const sub=cot.subtotal||cot.total-iva;
   let rows=cot.items.map((item,j)=>{
-    const sc=item.status==="Pedido"?"#e67e22":"#27ae60";
+    const sc=(item.status==="Sobre Pedido"||item.status==="Pedido")?"#e67e22":"#27ae60";
     return`<tr style="background:${j%2===0?"#fff":"#f9f9f9"}">
       <td style="padding:4px 6px;border-bottom:1px solid #eee;font-size:11px">${j+1}</td>
       <td style="padding:4px 6px;border-bottom:1px solid #eee;font-family:monospace;font-size:10px">${item.codigo}</td>
@@ -1007,7 +1008,7 @@ function verDetalleCot(i){
       <td style="padding:4px 6px;border-bottom:1px solid #eee;text-align:center;font-size:11px">${item.qty}</td>
       <td style="padding:4px 6px;border-bottom:1px solid #eee;text-align:right;font-size:11px;white-space:nowrap">${fmt(item.precioUnit)}</td>
       <td style="padding:4px 6px;border-bottom:1px solid #eee;text-align:right;font-weight:700;font-size:11px;white-space:nowrap">${fmt(item.subtotal)}</td>
-      <td style="padding:4px 6px;border-bottom:1px solid #eee;text-align:center;font-size:10px;color:${sc};font-weight:600">${item.status}</td>
+      <td style="padding:4px 6px;border-bottom:1px solid #eee;text-align:center;font-size:10px;color:${sc};font-weight:600">${stLbl(item.status)}</td>
     </tr>`;
   }).join("");
   document.getElementById("modal-detalle-content").innerHTML=`
@@ -1281,7 +1282,7 @@ function enviarCorreo(){
     else{p=parseFloat(item.precios[item.precioCol])||0;subBase=p*item.qty;subConIva=WITH_IVA_P.has(item.precioCol)?subBase:subBase*1.16;ivaItem=WITH_IVA_P.has(item.precioCol)?subBase/1.16*0.16:subBase*0.16;}
     grandTotal+=subConIva;ivaTotal+=ivaItem;
     const pUnit=WITH_IVA_P.has(item.precioCol)&&item.precioCol!==98&&item.precioCol!==97&&item.precioCol!==99?p/1.16:p;
-    return `${i+1}. [${item.codigo}] ${item.desc}\n   Cant: ${item.qty}  P.Unit: ${fmt(pUnit)}  Importe: ${fmt(subConIva)}  Estado: ${item.status}`;
+    return `${i+1}. [${item.codigo}] ${item.desc}\n   Cant: ${item.qty}  P.Unit: ${fmt(pUnit)}  Importe: ${fmt(subConIva)}  Estado: ${stLbl(item.status)}`;
   }).join("\n\n");
 
   const subtotal=grandTotal-ivaTotal;
