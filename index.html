@@ -263,6 +263,8 @@ td.aseg{color:#a03030;}
       <div class="cot-actions">
         <button class="btn-clear" onclick="limpiarCot()">🗑 Limpiar</button>
         <button id="btn-guardar-edicion" onclick="guardarEdicion()" style="display:none;padding:10px 20px;background:#1a7a1a;color:white;border:none;border-radius:6px;font-size:14px;cursor:pointer;font-weight:600;margin-right:8px;">💾 Guardar cambios</button>
+        <button onclick="abrirDoc('rem')" style="padding:10px 16px;background:#1a237e;color:white;border:none;border-radius:6px;font-size:14px;cursor:pointer;font-weight:600;margin-right:8px;">📄 Remisión</button>
+        <button onclick="abrirDoc('con')" style="padding:10px 16px;background:#00695c;color:white;border:none;border-radius:6px;font-size:14px;cursor:pointer;font-weight:600;margin-right:8px;">📄 Consignación</button>
         <button class="btn-print" onclick="imprimirCot()">🖨 Imprimir / PDF</button>
       </div>
     </div>
@@ -272,7 +274,7 @@ td.aseg{color:#a03030;}
 <div id="tab-hist" style="flex:1;display:none;flex-direction:column;overflow:hidden;">
   <div style="padding:14px 20px;background:white;border-bottom:1px solid #e0e0e0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
     <div>
-      <h2 style="font-size:15px;color:#c0392b;">🗂 Historial de Cotizaciones</h2>
+      <h2 style="font-size:15px;color:#c0392b;">🗂 Historial</h2>
       <p style="font-size:12px;color:#888;margin-top:3px;">Guardadas en este navegador</p>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
@@ -283,6 +285,7 @@ td.aseg{color:#a03030;}
       <input type="file" id="restaurar-file" accept=".txt,.json,text/plain,application/json" style="display:none" onchange="restaurar(event)">
     </div>
   </div>
+  <div id="hist-vistas" style="padding:10px 20px 0;display:flex;gap:8px;flex-wrap:wrap;flex-shrink:0;"></div>
   <div id="aviso-respaldo" style="display:none;margin:12px 20px 0;padding:10px 14px;background:#fdf3e3;border:1px solid #f0c987;border-left:4px solid #e67e22;border-radius:6px;font-size:12.5px;color:#8a5a1a;"></div>
   <div style="flex:1;overflow-y:auto;padding:16px 20px;" id="hist-content">
     <div id="hist-empty" style="text-align:center;padding:20px;color:#aaa;display:none;">
@@ -290,6 +293,7 @@ td.aseg{color:#a03030;}
       <p style="font-size:14px;margin-top:8px">Aún no hay cotizaciones guardadas.<br>Se guardan automáticamente al imprimir.</p>
     </div>
     <div id="hist-lista"></div>
+    <div id="hist-docs" style="display:none"></div>
   </div>
 </div>
 </div>
@@ -819,13 +823,16 @@ function getUltimoRespaldo(){try{return JSON.parse(localStorage.getItem("colisio
 
 function respaldar(){
   const h=getHistorial();
-  if(!h.length&&!clientes.length){alert("No hay nada que respaldar todavía.");return;}
+  if(!h.length&&!clientes.length&&!getDocs().length){alert("No hay nada que respaldar todavía.");return;}
   const datos={
     app:"Refaccionaria La Colision - Buscador y Cotizador",
     version:1,
     fecha:new Date().toISOString(),
     folio:parseInt(localStorage.getItem("colision_folio")||"1"),
     historial:h,
+    docs:getDocs(),
+    folio_rem:parseInt(localStorage.getItem("colision_folio_rem")||"1"),
+    folio_con:parseInt(localStorage.getItem("colision_folio_con")||"1"),
     clientes:clientes
   };
   const f=new Date();
@@ -874,7 +881,9 @@ function copiarRespaldo(){
   const h=getHistorial();
   const datos={app:"Refaccionaria La Colision - Buscador y Cotizador",version:1,
     fecha:new Date().toISOString(),folio:parseInt(localStorage.getItem("colision_folio")||"1"),
-    historial:h,clientes:clientes};
+    historial:h,docs:getDocs(),
+    folio_rem:parseInt(localStorage.getItem("colision_folio_rem")||"1"),
+    folio_con:parseInt(localStorage.getItem("colision_folio_con")||"1"),clientes:clientes};
   const f=new Date();
   respaldoManual(JSON.stringify(datos),"Respaldo_Colision_"+f.getFullYear()+"-"+String(f.getMonth()+1).padStart(2,"0")+"-"+String(f.getDate()).padStart(2,"0")+".txt");
   localStorage.setItem("colision_respaldo",JSON.stringify({fecha:datos.fecha,n:h.length}));
@@ -917,8 +926,18 @@ function restaurar(ev){
       if(inp)inp.value="COT-"+String(folioResp).padStart(3,"0");
       msgFolio="\nFolio restaurado: COT-"+String(folioResp).padStart(3,"0");
     }
+    // fusionar remisiones / consignaciones por tipo + folio
+    let nd=0;
+    if(Array.isArray(d.docs)){
+      const ad=getDocs();const keys=new Set(ad.map(x=>x.tipo+"|"+x.form.folio));
+      d.docs.forEach(x=>{if(x&&x.form&&x.tipo){const k=x.tipo+"|"+x.form.folio;if(!keys.has(k)){ad.push(x);keys.add(k);nd++;}}});
+      ad.sort((a,b)=>String(b.savedAt||"").localeCompare(String(a.savedAt||"")));
+      if(ad.length>500)ad.length=500;
+      saveDocs(ad);
+      ["rem","con"].forEach(t=>{const kk="colision_folio_"+t,vv=parseInt(d["folio_"+t]||0);if(vv>(parseInt(localStorage.getItem(kk)||"1")))localStorage.setItem(kk,String(vv));});
+    }
     renderHistorial();
-    alert("Restauración terminada.\n\nCotizaciones agregadas: "+nuevas+"\nClientes agregados: "+nc+msgFolio);
+    alert("Restauración terminada.\n\nCotizaciones agregadas: "+nuevas+"\nRemisiones/Consignaciones agregadas: "+nd+"\nClientes agregados: "+nc+msgFolio);
   };
   fr.onerror=function(){alert("No se pudo leer el archivo.");};
   fr.readAsText(file);
@@ -1315,4 +1334,351 @@ function enviarCorreo(){
   a.click();
   document.body.removeChild(a);
 }
+
+
+
+
+
+
+
+// ===== REMISIÓN / CONSIGNACIÓN =====
+const EMISORES={"REFACCIONARIA LA COLISION":"RCO8111268Z8","MAXIMO JOSE RODRIGUEZ RIOS":"RORM960429CYA"};
+function dEsc(s){return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
+function dMon(n){return (parseFloat(n)||0).toLocaleString("es-MX",{minimumFractionDigits:2,maximumFractionDigits:2});}
+function dFecha(iso){const p=(iso||"").split("-");return p.length===3?p[2]+"/"+p[1]+"/"+p[0]:(iso||"");}
+function dLS(k){try{return localStorage.getItem(k);}catch(e){return null;}}
+function dSS(k,v){try{localStorage.setItem(k,v);}catch(e){}}
+
+function numLetras(n){
+  const U=["","UNO","DOS","TRES","CUATRO","CINCO","SEIS","SIETE","OCHO","NUEVE","DIEZ","ONCE","DOCE","TRECE","CATORCE","QUINCE","DIECISEIS","DIECISIETE","DIECIOCHO","DIECINUEVE","VEINTE","VEINTIUNO","VEINTIDOS","VEINTITRES","VEINTICUATRO","VEINTICINCO","VEINTISEIS","VEINTISIETE","VEINTIOCHO","VEINTINUEVE"];
+  const D=["","","","TREINTA","CUARENTA","CINCUENTA","SESENTA","SETENTA","OCHENTA","NOVENTA"];
+  const C=["","CIENTO","DOSCIENTOS","TRESCIENTOS","CUATROCIENTOS","QUINIENTOS","SEISCIENTOS","SETECIENTOS","OCHOCIENTOS","NOVECIENTOS"];
+  const m100=x=>{if(x<30)return U[x];const d=Math.floor(x/10),u=x%10;return D[d]+(u?" Y "+U[u]:"");};
+  const m1000=x=>{if(x===100)return "CIEN";const c=Math.floor(x/100),r=x%100;return (C[c]+(c&&r?" ":"")+(r?m100(r):"")).trim();};
+  const apo=s=>s.replace(/UNO$/,"UN");
+  const ent=x=>{
+    if(x===0)return "CERO";
+    const mill=Math.floor(x/1e6),mil=Math.floor((x%1e6)/1000),r=x%1000;let o="";
+    if(mill)o+=(mill===1?"UN MILLÓN":apo(m1000(mill))+" MILLONES")+((!mil&&!r)?" DE":"")+" ";
+    if(mil)o+=(mil===1?"MIL":apo(m1000(mil))+" MIL")+" ";
+    if(r)o+=m1000(r);
+    return o.trim();
+  };
+  const t=Math.round((parseFloat(n)||0)*100),e=Math.floor(t/100),c=t%100;
+  const txt=ent(e).toLowerCase().replace(/\b([a-záéíóúñ]+)\b/g,(w)=>(w==="y"||w==="de")?w:w.charAt(0).toUpperCase()+w.slice(1));
+  return txt+" Pesos "+String(c).padStart(2,"0")+"/100 M.N.";
+}
+
+function docItems(){
+  const WI=new Set([3,4,5,6,7,8,9,10]);
+  let totCon=0;
+  const items=cotItems.map(item=>{
+    const q=item.qty;let con;
+    if(item.precioCol===98){con=(parseFloat(item.precios[3])*0.67||0)*q;}
+    else if(item.precioCol===97){con=(parseFloat(item.precios[3])*0.74||0)*q;}
+    else if(item.precioCol===99){const de=getDescEspecial(item.desc);con=(parseFloat(item.precios[2])*(de?de.pct:1)||0)*q*1.16;}
+    else{const p=parseFloat(item.precios[item.precioCol])||0;con=WI.has(item.precioCol)?p*q:p*q*1.16;}
+    totCon+=con;
+    return{codigo:item.codigo,desc:item.desc,qty:q,unit:con/q/1.16,base:Math.round(con/1.16*100)/100};
+  });
+  const total=Math.round(totCon*100)/100;
+  const sub=Math.round(total/1.16*100)/100;
+  return{items,total,sub,iva:Math.round((total-sub)*100)/100};
+}
+
+const ALM_ORIG=["General","1MAXBV","Cancun","Montejo","Portillo"];
+const ALM_DEST=["Consignacion","ML Matriz","ML Buenavista","ML Montejo","ML Cancun"];
+const DOC_FIELDS={
+  comun:[
+    ["remitente","Remitente (emisor)","select"],["cliente","Cliente","text"],["folio","Folio","text"],["fecha","Fecha","date"],
+    ["sucursal","Sucursal","select",["Mat","BV","Cun","Mon","Por"]],["agente","Agente","text"]
+  ],
+  rem:[
+    ["tel","Teléfono del cliente","text"],["vence","Fecha de vencimiento","date"],["origen","Origen venta","text"],
+    ["medio","Medio de entrega","select",["Tienda","Domicilio"]],["obs","Observaciones","textarea"]
+  ],
+  con:[
+    ["almorig","Almacén origen","select",ALM_ORIG],["almdest","Almacén destino","select",ALM_DEST],
+    ["siniestro","Siniestro","text"],["taller","Taller","text"],["vehiculo","Vehículo","text"],["ajustador","Ajustador - Tip. Serv.","text"],
+    ["vence","Vencimiento","text"],["pedsin","Pedido N°. Siniestro","text"],["placa","Placa","text"],["poliza","Póliza - N° Val. Ini.","text"]
+  ]
+};
+let docTipo="rem";
+
+let docOK=false;
+function abrirDoc(tipo){
+  if(!docOK){
+    const pass=prompt("Se requiere contraseña para generar Remisión o Consignación:");
+    if(pass===null)return;
+    if(pass!=="dzx"){alert("Contraseña incorrecta.");return;}
+    docOK=true;
+  }
+  if(!cotItems.length){alert("Primero agrega artículos al cotizador.");return;}
+  docTipo=tipo;
+  let m=document.getElementById("modal-doc");
+  if(!m){
+    m=document.createElement("div");m.id="modal-doc";
+    m.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:10px";
+    document.body.appendChild(m);
+  }
+  const key=tipo==="rem"?"colision_folio_rem":"colision_folio_con";
+  const folio=dLS(key)||"1";
+  const val={
+    remitente:dLS("colision_doc_remitente")||"REFACCIONARIA LA COLISION",
+    cliente:clienteSeleccionado||"",
+    folio:folio,
+    fecha:document.getElementById("cot-fecha").value||new Date().toISOString().split("T")[0],
+    sucursal:dLS("colision_doc_sucursal")||"",
+    agente:document.getElementById("cot-vendedor").value||"",
+    origen:"MOSTRADOR"
+  };
+  const campo=(f)=>{
+    const id="doc-"+f[0],v=dEsc(val[f[0]]||"");
+    const st="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:4px;font-size:13px;box-sizing:border-box";
+    let inp;
+    if(f[0]==="remitente")inp="<select id='"+id+"' style='"+st+"'>"+Object.keys(EMISORES).map(k=>"<option value=\""+k+"\""+(k===val.remitente?" selected":"")+">"+k+" ("+EMISORES[k]+")</option>").join("")+"</select>";
+    else if(f[2]==="select")inp="<select id='"+id+"' style='"+st+"'>"+f[3].map(k=>"<option value=\""+k+"\""+(k===val[f[0]]?" selected":"")+">"+k+"</option>").join("")+"</select>";
+    else if(f[2]==="textarea")inp="<textarea id='"+id+"' rows=2 style='"+st+"'>"+v+"</textarea>";
+    else inp="<input id='"+id+"' type='"+f[2]+"' value=\""+v+"\" style='"+st+"'>";
+    return "<div><label style='font-size:11px;color:#666;font-weight:600'>"+f[1]+"</label>"+inp+"</div>";
+  };
+  const campos=DOC_FIELDS.comun.concat(DOC_FIELDS[tipo]).map(campo).join("");
+  docIt=docItems();
+  const ist="padding:3px 5px;border:1px solid #ccc;border-radius:4px;font-size:12px;text-align:right;width:100%;box-sizing:border-box";
+  const filasIt=docIt.items.map((it,i)=>"<tr>"
+    +"<td style='font-family:monospace;font-size:11px'>"+dEsc(it.codigo)+"</td>"
+    +"<td style='font-size:11px'>"+dEsc(it.desc)+"</td>"
+    +"<td style='width:60px'><input id='di-q-"+i+"' type='number' min='1' step='1' value='"+it.qty+"' oninput='docRecalc("+i+",\"q\")' style='"+ist+"'></td>"
+    +"<td style='width:100px'><input id='di-pu-"+i+"' type='number' step='0.01' value='"+it.unit.toFixed(2)+"' oninput='docRecalc("+i+",\"pu\")' style='"+ist+"'></td>"
+    +"<td style='width:100px'><input id='di-pc-"+i+"' type='number' step='0.01' value='"+(it.unit*1.16).toFixed(2)+"' oninput='docRecalc("+i+",\"pc\")' style='"+ist+"'></td>"
+    +"<td id='di-im-"+i+"' style='text-align:right;width:90px;font-size:12px'>"+dMon(it.base)+"</td></tr>").join("");
+  const tablaIt="<div style='margin-top:14px;font-weight:700;font-size:12px'>Artículos y precios <span style='font-weight:400;color:#777'>(puedes modificar cantidad y precio; el importe del documento es sin IVA)</span></div>"
+    +"<div style='overflow:auto;margin-top:4px'><table style='width:100%;border-collapse:collapse;font-size:12px'><thead><tr style='background:#f0f0f0;text-align:left'><th style='padding:3px'>Clave</th><th>Descripción</th><th>Cant.</th><th>P.Unit s/IVA</th><th>P.Unit c/IVA</th><th style='text-align:right'>Importe s/IVA</th></tr></thead><tbody>"+filasIt+"</tbody></table></div>"
+    +"<div id='doc-tot' style='text-align:right;font-size:13px;margin-top:6px'></div>";
+  m.innerHTML="<div style='background:white;border-radius:10px;max-width:760px;width:100%;max-height:94vh;overflow:auto;padding:18px'>"
+    +"<h3 style='margin:0 0 4px;color:#c0392b'>"+(tipo==="rem"?"📄 Remisión":"📄 Consignación")+"</h3>"
+    +"<div style='font-size:12px;color:#777;margin-bottom:12px'>"+cotItems.length+" artículo(s) del cotizador. Llena los datos que necesites; lo vacío se imprime en blanco.</div>"
+    +"<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px'>"+campos+"</div>"+tablaIt
+    +"<div style='display:flex;gap:8px;justify-content:flex-end;margin-top:16px'>"
+    +"<button onclick=\"document.getElementById('modal-doc').remove()\" style='padding:9px 16px;background:#888;color:white;border:none;border-radius:6px;cursor:pointer'>Cancelar</button>"
+    +"<button onclick='generarDoc()' style='padding:9px 18px;background:#c0392b;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600'>🖨 Generar / Imprimir</button>"
+    +"</div></div>";
+  docRecalc(-1);
+}
+let docIt=null;
+function docLeer(){
+  // lee cantidades y precios del formulario; si nada cambió, conserva los totales exactos de la cotización
+  let editado=false,sub=0;
+  const items=docIt.items.map((it,i)=>{
+    const q=parseFloat(document.getElementById("di-q-"+i).value)||0;
+    const pu=document.getElementById("di-pu-"+i);
+    const raw=pu.dataset.raw!==undefined?parseFloat(pu.dataset.raw):parseFloat(pu.value)||0;
+    const cambio=(q!==it.qty)||(pu.dataset.raw!==undefined&&Math.abs(raw-it.unit)>=0.005)||(pu.dataset.raw===undefined&&Math.abs(raw-parseFloat(it.unit.toFixed(2)))>1e-9);
+    const base=cambio?Math.round(q*(pu.dataset.raw!==undefined?raw:parseFloat(pu.value)||0)*100)/100:it.base;
+    if(cambio)editado=true;
+    sub+=base;
+    return{codigo:it.codigo,desc:it.desc,qty:q,base:base};
+  });
+  if(!editado)return{items:items,sub:docIt.sub,iva:docIt.iva,total:docIt.total};
+  sub=Math.round(sub*100)/100;const iva=Math.round(sub*0.16*100)/100;
+  return{items:items,sub:sub,iva:iva,total:Math.round((sub+iva)*100)/100};
+}
+function docRecalc(i,src){
+  if(i>=0){
+    const pu=document.getElementById("di-pu-"+i),pc=document.getElementById("di-pc-"+i),q=document.getElementById("di-q-"+i);
+    if(src==="pu"){pu.dataset.raw=parseFloat(pu.value)||0;pc.value=((parseFloat(pu.value)||0)*1.16).toFixed(2);}
+    else if(src==="pc"){const r=(parseFloat(pc.value)||0)/1.16;pu.dataset.raw=r;pu.value=r.toFixed(2);}
+  }
+  const d=docLeer();
+  d.items.forEach((it,k)=>{document.getElementById("di-im-"+k).textContent=dMon(it.base);});
+  document.getElementById("doc-tot").innerHTML="Subtotal: <b>"+dMon(d.sub)+"</b> &nbsp; IVA: <b>"+dMon(d.iva)+"</b> &nbsp; Total: <b>"+dMon(d.total)+"</b>";
+}
+
+function generarDoc(){
+  const tipo=docTipo;
+  const form={};
+  DOC_FIELDS.comun.concat(DOC_FIELDS[tipo]).forEach(f=>{const e=document.getElementById("doc-"+f[0]);form[f[0]]=e?e.value.trim():"";});
+  const d=docLeer();
+  const rec={id:Date.now(),tipo:tipo,form:form,items:d.items,sub:d.sub,iva:d.iva,total:d.total,savedAt:new Date().toISOString()};
+  dSS(tipo==="rem"?"colision_folio_rem":"colision_folio_con",String((parseInt(form.folio)||0)+1));
+  dSS("colision_doc_remitente",form.remitente);dSS("colision_doc_sucursal",form.sucursal);
+  docGuardar(rec);
+  imprimirDocRec(rec);
+  document.getElementById("modal-doc").remove();
+  if(typeof renderHistorial==="function")renderHistorial();
+}
+
+function imprimirDocRec(rec){
+  const tipo=rec.tipo;
+  const g=(k)=>String(rec.form[k]==null?"":rec.form[k]);
+  const emisor=g("remitente"),rfcE=EMISORES[emisor]||"";
+  const d={items:rec.items,sub:rec.sub,iva:rec.iva,total:rec.total};
+  const rem=tipo==="rem";
+  const folioN=g("folio");
+  const folioTxt=folioN;
+  const azul="#1a237e";
+  const lbl=(t,v)=>"<tr><td style='padding:1px 8px 1px 0;font-weight:700;white-space:nowrap'>"+t+"</td><td>"+dEsc(v)+"</td></tr>";
+  const filas=d.items.map(it=>
+    "<tr>"+(rem?"<td></td><td>PIEZA</td>":"<td style='text-align:right'>"+it.qty+".00</td><td></td><td>PIEZA</td>")
+    +"<td>"+dEsc(it.codigo)+"</td><td>"+dEsc(it.desc)+"</td>"
+    +(rem?"<td style='text-align:right'>"+it.qty+".00</td>":"")
+    +"<td style='text-align:right'>"+dMon(it.base)+"</td></tr>").join("");
+  const thead=rem
+    ?"<tr><th style='width:9%'>PEDIDO CANT.</th><th style='width:8%'>UNIDAD</th><th style='width:15%'>CLAVE</th><th>DESCRIPCION</th><th style='width:10%;text-align:right'>REMISION</th><th style='width:12%;text-align:right'>IMPORTE</th></tr>"
+    :"<tr><th style='width:7%;text-align:right'>CANT.</th><th style='width:8%'>PEDIDO</th><th style='width:8%'>UNIDAD</th><th style='width:15%'>CLAVE</th><th>DESCRIPCION</th><th style='width:13%;text-align:right'>IMPORTE</th></tr>";
+  const cols=rem?5:5;
+  const totales="<table style='width:48%;margin-left:auto;margin-top:6px;border-collapse:collapse;font-size:10px'>"
+    +"<tr><td style='font-weight:700;text-align:right;padding:2px 10px'>SUBTOTAL</td><td style='text-align:right;font-weight:700'>"+dMon(d.sub)+"</td></tr>"
+    +"<tr><td style='font-weight:700;text-align:right;padding:2px 10px'>I.V.A.</td><td style='text-align:right;font-weight:700'>"+dMon(d.iva)+"</td></tr>"
+    +"<tr><td style='font-weight:700;text-align:right;padding:2px 10px'>TOTAL</td><td style='text-align:right;font-weight:700'>"+dMon(d.total)+"</td></tr></table>";
+  const encabDer=rem
+    ?"<table style='margin-left:auto;font-size:10px'>"
+      +"<tr><td style='text-align:right;padding-right:8px;font-weight:700'>Fecha de Vencimiento :</td><td>"+dEsc(dFecha(g("vence")))+"</td></tr>"
+      +"<tr><td style='text-align:right;padding-right:8px;font-weight:700'>Sucursal:</td><td>"+dEsc(g("sucursal"))+"</td></tr>"
+      +"</table>"
+    :"<table style='margin-left:auto;font-size:10px'>"
+      +"<tr><td style='text-align:right;padding-right:8px;font-weight:700'>Sucursal:</td><td>"+dEsc(g("sucursal"))+"</td></tr>"
+      +"<tr><td style='text-align:right;padding-right:8px;font-weight:700'>Agente</td><td>"+dEsc(g("agente"))+"</td></tr></table>";
+  const cliBloque="<div style='color:"+azul+";font-weight:700;font-size:11px;margin-top:3px'>"+dEsc(g("cliente"))+"</div>";
+  const bar="background:#e8e8e8;font-weight:700;font-size:10px;padding:2px 4px;";
+  let cuerpo;
+  if(rem){
+    cuerpo=
+      "<table style='width:100%;font-size:10px;margin-bottom:4px'><tr><td>Tel: "+dEsc(g("tel"))+"</td><td style='text-align:right'>Agente: "+dEsc(g("agente"))+"</td></tr></table>"
+      +"<table style='width:100%;border-collapse:collapse'><tr><td style='"+bar+"'>Vendido a:</td></tr>"
+      +"<tr><td style='vertical-align:top;padding:2px 4px'>"+cliBloque+"</td></tr></table>"
+      +"<div style='"+bar+"margin-top:4px'>Datos estadísticos</div>"
+      +"<table style='font-size:10px;margin:2px 4px'>"+lbl("ORIGEN VENTA",g("origen"))+lbl("MEDIO DE ENTREGA",g("medio"))+"</table>";
+  }else{
+    cuerpo=
+      "<table style='width:100%;border-collapse:collapse'><tr><td style='"+bar+"'>Consignado a:</td></tr>"
+      +"<tr><td style='vertical-align:top;padding:2px 4px'>"+cliBloque+"</td></tr></table>"
+      +"<table style='width:100%;border-collapse:collapse;margin-top:4px'><tr><td style='"+bar+"text-align:center'>ALMACÉN ORIGEN : "+dEsc(g("almorig"))+"</td><td style='"+bar+"text-align:center'>ALMACÉN DESTINO : "+dEsc(g("almdest"))+"</td></tr></table>"
+      +"<div style='"+bar+"margin-top:4px'>OTROS DATOS</div>"
+      +"<table style='width:100%;font-size:10px;margin:2px 0'><tr><td style='vertical-align:top;width:50%'><table>"
+      +lbl("SINIESTRO",g("siniestro"))+lbl("TALLER",g("taller"))+lbl("VENCIMIENTO",/^\d{4}-\d\d-\d\d$/.test(g("vence"))?dFecha(g("vence")):g("vence"))+lbl("PLACA",g("placa"))
+      +"</table></td><td style='vertical-align:top'><table>"
+      +lbl("VEHICULO",g("vehiculo"))+lbl("AJUSTADOR-TIP. SERV.",g("ajustador"))+lbl("PEDIDO N°. SINIESTRO",g("pedsin"))+lbl("POLIZA-N° VAL. INI.",g("poliza"))
+      +"</table></td></tr></table>";
+  }
+  const garantia=rem
+    ?"<div style='font-size:9px;margin-top:14px'><div>Condiciones de garantía y devolución:</div><div style='margin-top:6px'>"
+      +"* La garantía aplica exclusivamente por defecto de fábrica hasta por un año en productos de iluminación.<br>"
+      +"* Para piezas solicitadas sobre pedido, el cliente dispone de un plazo máximo de 25 días para recogerlas.<br>"
+      +"* Transcurrido el plazo para recoger la pieza, en caso de devolución o cancelación se reembolsará únicamente el 50% del anticipo, debido a que las piezas fueron solicitadas y pagadas directamente al proveedor para el cliente.<br>"
+      +"* Si la pieza no es compatible con el vehículo o presenta un detalle de fábrica, se podrá solicitar devolución siempre que sea dentro del mes siguiente a la fecha de entrega y en su empaque original (bolsa o caja), sin manipulación y daño."
+      +"</div></div>":"";
+  const obs=rem?"<div style='margin-top:10px;font-size:10px'><div style='"+bar+"'>Observaciones</div><div style='padding:3px 4px;white-space:pre-line'>"+dEsc(g("obs"))+"</div></div>":"";
+  const firmas="<div style='display:flex;justify-content:space-around;margin-top:46px;font-size:10px'>"
+    +"<div style='border-top:1px solid #000;width:38%;text-align:center;padding-top:3px'>ENTREGÓ</div>"
+    +"<div style='border-top:1px solid #000;width:38%;text-align:center;padding-top:3px'>RECIBIÓ</div></div>";
+  const html="<!DOCTYPE html><html><head><meta charset='UTF-8'><title>"+(rem?"Remisión ":"Consignación ")+dEsc(folioTxt)+"</title><style>"
+    +"*{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}"
+    +"@page{size:letter portrait;margin:8mm 8mm 14mm 8mm;@bottom-right{content:'No. página / Páginas totales  ' counter(page) ' / ' counter(pages);font-size:8px;font-family:Arial}}"
+    +"body{font-family:Arial,sans-serif;font-size:10px;color:#111}"
+    +"table.it{width:100%;border-collapse:collapse;margin-top:6px}"
+    +"table.it th{background:#455a64;color:#fff;font-size:9px;text-align:left;padding:4px 4px}"
+    +"table.it td{padding:2px 4px;font-size:9.5px;vertical-align:top}"
+    +"table.it tr{page-break-inside:avoid}"
+    +"</style></head><body>"
+    +"<div style='display:grid;grid-template-columns:1fr auto 1fr;align-items:start'>"
+    +"<div><img src='"+LOGO+"' style='height:78px;object-fit:contain'></div>"
+    +"<div style='height:78px;display:flex;flex-direction:column;justify-content:center;text-align:center;padding:0 10px'><div style='font-size:13px;font-weight:700;white-space:nowrap'>"+dEsc(emisor)+"</div><div style='font-size:10px;font-weight:700'>RFC: "+dEsc(rfcE)+"</div></div>"
+    +"<div style='text-align:right'><div style='font-size:19px;font-weight:700'>"+(rem?"REMISIÓN":"Consignación")+"</div>"
+    +"<div style='font-size:17px;font-weight:700;margin:2px 0'>Folio: <span style='color:"+azul+";margin-left:16px'>"+dEsc(folioTxt)+"</span></div>"
+    +"<div style='font-size:10px'>Emitida<br><span style='color:"+azul+"'>"+dEsc(dFecha(g("fecha")))+"</span></div>"
+    +encabDer+"</div></div>"
+    +"<div style='margin-top:8px'>"+cuerpo+"</div>"
+    +"<table class='it'><thead>"+thead+"</thead><tbody>"+filas+"</tbody></table>"
+    +totales
+    +(rem?"<div style='text-align:right;font-weight:700;font-size:10px;margin-top:4px'>"+dEsc(numLetras(d.total))+"</div>":"")
+    +obs+firmas+garantia
+    +"<script>window.onload=function(){window.print();}<\/script></body></html>";
+  const blob=new Blob([html],{type:"text/html"});
+  const url=URL.createObjectURL(blob);
+  const pw=window.open(url,"_blank");
+  if(pw){setTimeout(()=>{URL.revokeObjectURL(url);},3000);}
+  else{
+    document.getElementById("print-area").innerHTML="<style>@page{size:letter portrait;margin:8mm}</style>"+html.replace(/<script>.*<\/script>/,"");
+    document.getElementById("print-area").style.display="block";
+    window.print();
+    document.getElementById("print-area").style.display="none";
+    document.getElementById("print-area").innerHTML="";
+  }
+}
+
+// ===== HISTORIAL DE REMISIONES / CONSIGNACIONES =====
+function getDocs(){try{return JSON.parse(localStorage.getItem("colision_docs")||"[]");}catch(e){return[];}}
+function saveDocs(a){try{localStorage.setItem("colision_docs",JSON.stringify(a));}catch(e){}}
+function docFolioTxt(rec){return String(rec.form.folio||"");}
+function docGuardar(rec){
+  const a=getDocs();
+  const i=a.findIndex(x=>x.tipo===rec.tipo&&String(x.form.folio)===String(rec.form.folio));
+  if(i>=0)a[i]=rec;else{a.unshift(rec);if(a.length>500)a.length=500;}
+  saveDocs(a);
+}
+let histVista="cot";
+function setVistaHist(v){histVista=v;renderHistorial();}
+function actualizarVistasHist(){
+  const el=document.getElementById("hist-vistas");if(!el)return;
+  const a=getDocs();
+  const n={cot:getHistorial().length,rem:a.filter(x=>x.tipo==="rem").length,con:a.filter(x=>x.tipo==="con").length};
+  const nom={cot:"Cotizaciones",rem:"Remisiones",con:"Consignaciones"};
+  el.innerHTML=["cot","rem","con"].map(k=>"<button onclick=\"setVistaHist('"+k+"')\" style='padding:6px 14px;border-radius:16px;border:1px solid #c0392b;font-size:12px;cursor:pointer;font-weight:600;background:"+(k===histVista?"#c0392b":"white")+";color:"+(k===histVista?"white":"#c0392b")+"'>"+nom[k]+" ("+n[k]+")</button>").join(" ");
+}
+const _rhOrig=renderHistorial;
+renderHistorial=function(){
+  _rhOrig();
+  actualizarVistasHist();
+  const L=document.getElementById("hist-lista"),E=document.getElementById("hist-empty"),D=document.getElementById("hist-docs");
+  if(!D)return;
+  if(histVista==="cot"){D.style.display="none";L.style.display="";return;}
+  L.style.display="none";E.style.display="none";D.style.display="block";
+  const lista=getDocs().map((x,i)=>({x:x,i:i})).filter(o=>o.x.tipo===histVista);
+  const nom=histVista==="rem"?"remisiones":"consignaciones";
+  if(!lista.length){D.innerHTML="<div style='text-align:center;padding:20px;color:#aaa'><div style='font-size:40px'>🗂</div><p style='font-size:14px;margin-top:8px'>Aún no hay "+nom+" guardadas.<br>Se guardan automáticamente al generarlas.</p></div>";return;}
+  D.innerHTML=lista.map(o=>{
+    const r=o.x,f=r.form;
+    const extra=r.tipo==="con"?[f.siniestro?"Siniestro: "+f.siniestro:"",f.taller?"Taller: "+f.taller:""].filter(Boolean).join(" · "):(f.medio?"Entrega: "+f.medio:"");
+    return "<div style='background:white;border:1px solid #eee;border-radius:8px;padding:14px 16px;margin-bottom:10px'>"
+      +"<div style='display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px'>"
+      +"<div><div style='font-weight:700;font-size:14px;color:#c0392b'>"+(r.tipo==="rem"?"Remisión ":"Consignación ")+dEsc(docFolioTxt(r))+"</div>"
+      +"<div style='font-size:13px;font-weight:600;margin-top:2px'>"+dEsc(f.cliente||"—")+"</div>"
+      +"<div style='font-size:12px;color:#666'>"+dEsc(f.remitente||"")+(f.sucursal?" · Suc. "+dEsc(f.sucursal):"")+"</div>"
+      +(extra?"<div style='font-size:12px;color:#666'>"+dEsc(extra)+"</div>":"")+"</div>"
+      +"<div style='text-align:right'><div style='font-size:16px;font-weight:700;color:#c0392b'>"+fmt(r.total)+"</div>"
+      +"<div style='font-size:11px;color:#888'>"+dEsc(dFecha(f.fecha))+"</div>"
+      +"<div style='font-size:11px;color:#888'>"+r.items.length+" artículo"+(r.items.length!==1?"s":"")+"</div></div></div>"
+      +"<div style='margin-top:8px;display:flex;gap:8px;flex-wrap:wrap'>"
+      +"<button onclick='verDetalleDoc("+o.i+")' style='padding:5px 12px;background:#555;color:white;border:none;border-radius:4px;font-size:11px;cursor:pointer'>👁 Ver detalle</button>"
+      +"<button onclick='reimprimirDoc("+o.i+")' style='padding:5px 12px;background:#c0392b;color:white;border:none;border-radius:4px;font-size:11px;cursor:pointer'>🖨 Reimprimir</button>"
+      +"<button onclick='eliminarDoc("+o.i+")' style='padding:5px 12px;background:#aaa;color:white;border:none;border-radius:4px;font-size:11px;cursor:pointer'>🗑 Eliminar</button>"
+      +"</div></div>";
+  }).join("");
+};
+function reimprimirDoc(i){const r=getDocs()[i];if(r)imprimirDocRec(r);}
+function eliminarDoc(i){if(confirm("¿Eliminar este documento del historial?")){const a=getDocs();a.splice(i,1);saveDocs(a);renderHistorial();}}
+function verDetalleDoc(i){
+  const r=getDocs()[i];if(!r)return;
+  const f=r.form;
+  const nombres={remitente:"Remitente",cliente:"Cliente",folio:"Folio",fecha:"Fecha",sucursal:"Sucursal",agente:"Agente",tel:"Teléfono",vence:"Vencimiento",origen:"Origen venta",medio:"Medio de entrega",obs:"Observaciones",almorig:"Almacén origen",almdest:"Almacén destino",siniestro:"Siniestro",taller:"Taller",vehiculo:"Vehículo",ajustador:"Ajustador - Tip. Serv.",pedsin:"Pedido N°. Siniestro",placa:"Placa",poliza:"Póliza - N° Val. Ini."};
+  const campos=Object.keys(f).filter(k=>f[k]).map(k=>"<tr><td style='padding:2px 10px 2px 0;font-weight:700;white-space:nowrap;vertical-align:top'>"+(nombres[k]||k)+"</td><td>"+dEsc(k==="fecha"?dFecha(f[k]):f[k])+"</td></tr>").join("");
+  const items=r.items.map(it=>"<tr><td style='font-family:monospace'>"+dEsc(it.codigo)+"</td><td>"+dEsc(it.desc)+"</td><td style='text-align:center'>"+it.qty+"</td><td style='text-align:right'>"+dMon(it.base)+"</td></tr>").join("");
+  const ov=document.createElement("div");
+  ov.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:10px";
+  ov.innerHTML="<div style='background:white;border-radius:10px;max-width:720px;width:100%;max-height:92vh;overflow:auto;padding:18px;font-size:12.5px'>"
+    +"<h3 style='color:#c0392b;margin-bottom:8px'>"+(r.tipo==="rem"?"Remisión ":"Consignación ")+dEsc(docFolioTxt(r))+"</h3>"
+    +"<table style='margin-bottom:10px'>"+campos+"</table>"
+    +"<table style='width:100%;border-collapse:collapse'><thead><tr style='background:#f0f0f0;text-align:left'><th style='padding:3px'>Clave</th><th>Descripción</th><th>Cant.</th><th style='text-align:right'>Importe s/IVA</th></tr></thead><tbody>"+items+"</tbody></table>"
+    +"<div style='text-align:right;margin-top:8px'>Subtotal: <b>"+dMon(r.sub)+"</b> &nbsp; IVA: <b>"+dMon(r.iva)+"</b> &nbsp; Total: <b>"+dMon(r.total)+"</b></div>"
+    +"<div style='text-align:right;margin-top:12px'><button style='padding:8px 16px;background:#888;color:white;border:none;border-radius:6px;cursor:pointer'>Cerrar</button></div></div>";
+  document.body.appendChild(ov);
+  ov.querySelector("button").onclick=function(){ov.remove();};
+}
+const _lhOrig=limpiarHistorial;
+limpiarHistorial=function(){
+  if(histVista==="cot")return _lhOrig();
+  const nom=histVista==="rem"?"remisiones":"consignaciones";
+  if(confirm("¿Eliminar todas las "+nom+" del historial?")){saveDocs(getDocs().filter(x=>x.tipo!==histVista));renderHistorial();}
+};
 </script></body></html>
