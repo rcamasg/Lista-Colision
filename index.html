@@ -946,7 +946,7 @@ function restaurar(ev){
 function avisoRespaldo(){
   const el=document.getElementById("aviso-respaldo");
   if(!el)return;
-  const h=getHistorial();
+  const h=getHistorial().concat(getDocs());
   const r=getUltimoRespaldo();
   if(!h.length){el.style.display="none";return;}
   let pend;
@@ -954,7 +954,7 @@ function avisoRespaldo(){
   else{pend=h.filter(c=>!c.savedAt||c.savedAt>r.fecha).length;}
   if(pend<5){el.style.display="none";return;}
   const cuando=r?("Último respaldo: "+new Date(r.fecha).toLocaleDateString("es-MX")):"Aún no has hecho ningún respaldo.";
-  el.innerHTML="⚠️ <strong>"+pend+" cotización(es) sin respaldar.</strong> "+cuando+" &nbsp;<a href=\"javascript:respaldar()\" style=\"color:#c0392b;font-weight:600\">Respaldar ahora</a>";
+  el.innerHTML="⚠️ <strong>"+pend+" documento(s) (cotizaciones, remisiones o consignaciones) sin respaldar.</strong> "+cuando+" &nbsp;<a href=\"javascript:respaldar()\" style=\"color:#c0392b;font-weight:600\">Respaldar ahora</a>";
   el.style.display="block";
 }
 
@@ -1397,7 +1397,7 @@ const DOC_FIELDS={
   ],
   rem:[
     ["tel","Teléfono del cliente","text"],["vence","Fecha de vencimiento","date"],["origen","Origen venta","text"],
-    ["medio","Medio de entrega","select",["Tienda","Domicilio"]],["obs","Observaciones","textarea"]
+    ["medio","Medio de entrega","select",["Tienda","Domicilio"]],["siniestro","Siniestro","text"],["taller","Taller","text"],["obs","Observaciones","textarea"]
   ],
   con:[
     ["almorig","Almacén origen","select",ALM_ORIG],["almdest","Almacén destino","select",ALM_DEST],
@@ -1544,6 +1544,7 @@ function generarDoc(){
   dSS("colision_doc_remitente",form.remitente);dSS("colision_doc_sucursal",form.sucursal);
   docGuardar(rec);
   imprimirDocRec(rec);
+  try{avisoRespaldo();}catch(e){}
   document.getElementById("modal-doc").remove();
   if(typeof renderHistorial==="function")renderHistorial();
 }
@@ -1588,7 +1589,7 @@ function imprimirDocRec(rec){
       +"<table style='width:100%;border-collapse:collapse'><tr><td style='"+bar+"'>Vendido a:</td></tr>"
       +"<tr><td style='vertical-align:top;padding:2px 4px'>"+cliBloque+"</td></tr></table>"
       +"<div style='"+bar+"margin-top:4px'>Datos estadísticos</div>"
-      +"<table style='font-size:10px;margin:2px 4px'>"+lbl("ORIGEN VENTA",g("origen"))+lbl("MEDIO DE ENTREGA",g("medio"))+"</table>";
+      +"<table style='font-size:10px;margin:2px 4px'>"+lbl("ORIGEN VENTA",g("origen"))+lbl("MEDIO DE ENTREGA",g("medio"))+lbl("SINIESTRO",g("siniestro"))+lbl("TALLER",g("taller"))+"</table>";
   }else{
     cuerpo=
       "<table style='width:100%;border-collapse:collapse'><tr><td style='"+bar+"'>Consignado a:</td></tr>"
@@ -1679,7 +1680,7 @@ renderHistorial=function(){
   if(!lista.length){D.innerHTML="<div style='text-align:center;padding:20px;color:#aaa'><div style='font-size:40px'>🗂</div><p style='font-size:14px;margin-top:8px'>Aún no hay "+nom+" guardadas.<br>Se guardan automáticamente al generarlas.</p></div>";return;}
   D.innerHTML=lista.map(o=>{
     const r=o.x,f=r.form;
-    const extra=r.tipo==="con"?[f.siniestro?"Siniestro: "+f.siniestro:"",f.taller?"Taller: "+f.taller:""].filter(Boolean).join(" · "):(f.medio?"Entrega: "+f.medio:"");
+    const extra=r.tipo==="con"?[f.siniestro?"Siniestro: "+f.siniestro:"",f.taller?"Taller: "+f.taller:""].filter(Boolean).join(" · "):[f.medio?"Entrega: "+f.medio:"",f.siniestro?"Siniestro: "+f.siniestro:"",f.taller?"Taller: "+f.taller:""].filter(Boolean).join(" · ");
     return "<div style='background:white;border:1px solid #eee;border-radius:8px;padding:14px 16px;margin-bottom:10px'>"
       +"<div style='display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px'>"
       +"<div><div style='font-weight:700;font-size:14px;color:#c0392b'>"+(r.tipo==="rem"?"Remisión ":"Consignación ")+dEsc(docFolioTxt(r))+"</div>"
