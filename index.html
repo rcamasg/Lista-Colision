@@ -183,7 +183,7 @@ td.aseg{color:#a03030;}
     <div style="font-size:12px;color:#7a5200;padding:6px 20px;background:#fff8e1;border-bottom:1px solid #e0e0e0;">Artículos con existencia que no están en B1 ni B2, por eso no tienen precio. La descripción viene de Alpha y puede estar cortada a 40 caracteres.</div>
     <div class="stats" id="stats3"></div>
     <div class="table-wrap" id="wrap3">
-      <table style="min-width:600px"><thead><tr><th>Código</th><th>Descripción</th><th>Marca</th><th style="text-align:center">Exist.</th></tr></thead><tbody id="tbody3"></tbody></table>
+      <table style="min-width:700px"><thead><tr><th>Código</th><th>Descripción</th><th>Marca</th><th>Equivale a (con precio)</th><th style="text-align:center">Exist.</th></tr></thead><tbody id="tbody3"></tbody></table>
     </div>
   </div>
 
@@ -420,42 +420,68 @@ function switchTab(t){
 function fmt(n){if(n===""||n===null||n!==n)return"-";return"$"+parseFloat(n).toLocaleString("es-MX",{minimumFractionDigits:2,maximumFractionDigits:2});}
 
 // BUSCADOR 1
-// EXISTENCIAS (prueba)
+// EXISTENCIAS
 const INV_ALM=["General","Cancún","Montejo","Portillo","Buenavista","Outlet","ML Matriz","ML Buenavista","ML Montejo","ML Cancún"];
 const INV_FECHA="12-nov-2026";
-function invTot(c){const v=INV[c];return v?v.reduce((a,b)=>a+b,0):null;}
+// Códigos sin precio que son equivalentes de un código con precio (confirmados por Roberto)
+const EQUIV={"11-6401-A5-29":"11-6401-A5-2B","11-B624-01-2B":"11-B624-01-6B","18-6077-00-1A":"18-6077-00-1N","20-E746-05-29":"20-E746-05-2B","20-E911-A5-29":"20-E911-A5-2B","20-E912-A5-29":"20-E912-A5-2B","TSMRTYA17A":"TSMRTYA174","11-5933-01-6B":"11-5933-01-1A","11-B623-01-2B":"11-B623-01-6B","ADNPU84NL":"ADNPU84PL","20-E745-05-29":"20-E745-05-2B","FCNV1012":"11-E214B015B3","FFNF0432":"20-E260-A5-2B","FFNF1002":"20-B654-05-6B","FQHN0281":"17-1128B005B3","FTHN0252":"NSFL072LB","FXNC0301":"FNCCH04R","DS204-01X-L-C":"DS204-01X-L","FCNV0611":"11-C443-01-6B","AERT0401":"ELTHI06NR","AERT0402":"ELTHI06NL","CCNN0910":"CNVE15","CPGC0600":"PCCH09S","CQJF0211":"MRFFI03","CQRG0100":"MRCMT06S","FCNF0701":"11-E7610015B3","FCNK1003":"17-B2690015B3","FQNN0102":"18-A0780005B3","KAFOSP192C":"SPKFO19T","LPNT392DL1":"LPNT392DL","LPNT392DR1":"LPNT392DR","MRCSP11-C":"MRCSP11","CCJC0300":"CCCH04","CCJF0210":"CFFI03","CPTT0760":"PTPU16C","CSNZ0902":"SMC3020L","CTYA18-C":"CTYA18","CZND0302":"PTHDGI15DL","FCNV0904":"CVVVI20IL","FCNV1021":"CVVSA24R","FXNC0834":"FNCSP19NL","TY309-02AN-C":"CTAV12","CCJC0110":"CCCH02","CCJV0120":"CVJE19","CCMC0100":"CCCH94","CCRV0190":"CVJE19","CSJC0801":"SCSP11R","CZNN0711":"PTNPU16R","ELNPU16L-C":"ELNPU16L","FFNC0101":"FCCH01R","SCMA97L":"202-0630-01","VWPOSA001":"SVPO00L","98622":"MEPDAI06DBR","CDR70015-C":"CDR70015","CMTC9950":"96648620","CSJN0703":"SNPU21R","DDCMT06-C":"DDCMT06","DTNKI17S-C":"DTNKI17S","FCNN0911":"11-9131-A5-2B","FFNG0111":"20-B541-A5-2B","FFNS0101":"FMTMI21CR","FFNS0102":"FMTMI21CL","FFNV0161":"20-C073-06-6B","MRVGL19-C":"MRVGL19"};
+const EQ_REV={};Object.keys(EQUIV).forEach(k=>{(EQ_REV[EQUIV[k]]=EQ_REV[EQUIV[k]]||[]).push(k);});
+function invSum(v){return v?v.reduce((a,b)=>a+b,0):0;}
+function invTot(c){
+  const v=INV[c],e=EQ_REV[c];
+  if(!v&&!e)return null;
+  let t=invSum(v);
+  if(e)e.forEach(k=>{t+=invSum(INV[k]);});
+  return t;
+}
+function invEqTot(c){let t=0;(EQ_REV[c]||[]).forEach(k=>{t+=invSum(INV[k]);});return t;}
 function invCell(c){
   const t=invTot(c);
   if(t===null)return "<td style='text-align:center;color:#999' title='Sin existencia registrada al "+INV_FECHA+"'>\u2014</td>";
-  return "<td style='text-align:center'><span onclick='invDetalle(this,event)' data-cod=\""+c+"\" title='Ver por almac\u00e9n' style='cursor:pointer;display:inline-block;min-width:30px;padding:2px 8px;border-radius:10px;font-weight:700;font-size:12px;color:#fff;background:#1b7a3d'>"+t+"</span></td>";
+  const eq=invEqTot(c);
+  const ttl=eq>0?"Incluye "+eq+" pza(s) de c\u00f3digo equivalente. Toca para ver por almac\u00e9n":"Ver por almac\u00e9n";
+  return "<td style='text-align:center'><span onclick='invDetalle(this,event)' data-cod=\""+c+"\" title='"+ttl+"' style='cursor:pointer;display:inline-block;min-width:30px;padding:2px 8px;border-radius:10px;font-weight:700;font-size:12px;color:#fff;background:"+(t>0?"#1b7a3d":"#888")+"'>"+t+(eq>0?"*":"")+"</span></td>";
 }
 function invCerrar(){const p=document.getElementById("inv-pop");if(p)p.remove();}
 function invDetalle(el,ev){
   ev.stopPropagation();invCerrar();
-  const c=el.getAttribute("data-cod"),v=INV[c]||[];
-  const filas=INV_ALM.map((a,i)=>"<tr style='"+(v[i]>0?"":"color:#aaa")+"'><td style='padding:2px 10px 2px 0'>"+a+"</td><td style='text-align:right;font-weight:"+(v[i]>0?"700":"400")+"'>"+(v[i]||0)+"</td></tr>").join("");
+  const c=el.getAttribute("data-cod"),v=INV[c]||[],eqs=EQ_REV[c]||[];
+  const ev_=eqs.map(k=>INV[k]||[]);
+  const comb=INV_ALM.map((a,i)=>(v[i]||0)+ev_.reduce((s,x)=>s+(x[i]||0),0));
+  let cab="<tr style='color:#777;font-size:11px'><td></td>"+(eqs.length?"<td style='text-align:right'>Este</td><td style='text-align:right'>Equiv.</td>":"<td></td>")+"</tr>";
+  const filas=INV_ALM.map((a,i)=>{
+    const own=v[i]||0,eq=comb[i]-own,t=comb[i];
+    return "<tr style='"+(t>0?"":"color:#aaa")+"'><td style='padding:2px 10px 2px 0'>"+a+"</td>"+(eqs.length?"<td style='text-align:right'>"+own+"</td><td style='text-align:right'>"+eq+"</td>":"<td style='text-align:right;font-weight:"+(t>0?"700":"400")+"'>"+own+"</td>")+"</tr>";
+  }).join("");
+  const nota=eqs.length?"<div style='font-size:12px;color:#7a5200;margin-top:6px'>Equivalente: "+eqs.join(", ")+"</div>":"";
   const p=document.createElement("div");p.id="inv-pop";
-  p.style.cssText="position:fixed;z-index:9999;background:#fff;border:1px solid #bbb;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.25);padding:10px 14px;font-size:13px;width:240px;box-sizing:border-box";
-  p.innerHTML="<div style='font-weight:700;margin-bottom:4px'>"+c+"</div><table style='border-collapse:collapse;width:100%;min-width:0;table-layout:auto'>"+filas+"<tr style='border-top:1px solid #ccc'><td style='padding-top:4px'><b>Total</b></td><td style='text-align:right;padding-top:4px'><b>"+invTot(c)+"</b></td></tr></table><div style='font-size:11px;color:#888;margin-top:6px'>Existencias al "+INV_FECHA+"</div>";
+  p.style.cssText="position:fixed;z-index:9999;background:#fff;border:1px solid #bbb;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.25);padding:10px 14px;font-size:13px;width:250px;box-sizing:border-box";
+  p.innerHTML="<div style='font-weight:700;margin-bottom:4px'>"+c+"</div><table style='border-collapse:collapse;width:100%;min-width:0;table-layout:auto'>"+(eqs.length?cab:"")+filas+"<tr style='border-top:1px solid #ccc'><td style='padding-top:4px'><b>Total</b></td><td style='text-align:right;padding-top:4px'"+(eqs.length?" colspan=2":"")+"><b>"+invTot(c)+"</b></td></tr></table>"+nota+"<div style='font-size:11px;color:#888;margin-top:6px'>Existencias al "+INV_FECHA+"</div>";
   document.body.appendChild(p);
   const r=el.getBoundingClientRect();
   p.style.left=Math.max(8,Math.min(r.left-20,window.innerWidth-p.offsetWidth-8))+"px";
   p.style.top=Math.max(8,Math.min(r.bottom+4,window.innerHeight-p.offsetHeight-8))+"px";
 }
 document.addEventListener("click",invCerrar);
+// Ir al buscador con el código equivalente
+function irA(c){
+  const b1=DATA1.some(r=>r[0]===c);
+  switchTab(b1?"b1":"b2");
+  const q=document.getElementById(b1?"q1":"q2");q.value=c;(b1?buscar1:buscar2)();
+}
 
 // TAB EXISTENCIAS (articulos con existencia que no estan en B1 ni B2)
 let t3=null,f3=SOLOEX,s3=200;
 function render3(){
   const sl=f3.slice(0,s3),tb=document.getElementById("tbody3"),st=document.getElementById("stats3");
-  if(!sl.length){tb.innerHTML="<tr><td colspan=4 class=no-results>Sin resultados</td></tr>";st.textContent="Sin resultados";return;}
-  tb.innerHTML=sl.map(r=>"<tr><td class=cod>"+r[0]+"</td><td>"+r[1]+"</td><td>"+r[2]+"</td>"+invCell(r[0])+"</tr>").join("");
+  if(!sl.length){tb.innerHTML="<tr><td colspan=5 class=no-results>Sin resultados</td></tr>";st.textContent="Sin resultados";return;}
+  tb.innerHTML=sl.map(r=>"<tr><td class=cod>"+r[0]+"</td><td>"+r[1]+"</td><td>"+r[2]+"</td><td class=cod>"+(EQUIV[r[0]]?"<a href='#' onclick=\"irA('"+EQUIV[r[0]]+"');return false\" style='color:#c0392b;font-weight:600' title='Ver en la lista de precios'>"+EQUIV[r[0]]+"</a>":"")+"</td>"+invCell(r[0])+"</tr>").join("");
   st.textContent="Mostrando "+sl.length.toLocaleString("es-MX")+" de "+f3.length.toLocaleString("es-MX")+" art\u00edculos con existencia y sin precio"+(f3.length<SOLOEX.length?" (total: "+SOLOEX.length.toLocaleString("es-MX")+")":"")+" \u00b7 Existencias al "+INV_FECHA;
 }
 function buscar3(){
   clearTimeout(t3);t3=setTimeout(()=>{
     const q=document.getElementById("q3").value.trim().toUpperCase();
-    s3=200;f3=!q?SOLOEX:SOLOEX.filter(r=>q.split(" ").filter(Boolean).every(t=>(r[0]+" "+r[1]+" "+r[2]).toUpperCase().includes(t)));
+    s3=200;f3=!q?SOLOEX:SOLOEX.filter(r=>q.split(" ").filter(Boolean).every(t=>(r[0]+" "+r[1]+" "+r[2]+" "+(EQUIV[r[0]]||"")).toUpperCase().includes(t)));
     render3();
   },150);
 }
