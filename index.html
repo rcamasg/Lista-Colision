@@ -470,18 +470,20 @@ function invCell(c){
 function invCerrar(){const p=document.getElementById("inv-pop");if(p)p.remove();}
 function invDetalle(el,ev){
   ev.stopPropagation();invCerrar();
-  const c=el.getAttribute("data-cod"),v=INV[c]||[],eqs=EQ_REV[c]||[];
-  const ev_=eqs.map(k=>INV[k]||[]);
-  const comb=INV_ALM.map((a,i)=>(v[i]||0)+ev_.reduce((s,x)=>s+(x[i]||0),0));
-  let cab="<tr style='color:#777;font-size:11px'><td></td>"+(eqs.length?"<td style='text-align:right'>Este</td><td style='text-align:right'>Equiv.</td>":"<td></td>")+"</tr>";
+  const c=el.getAttribute("data-cod"),v=INV[c]||[],eqs=(EQ_REV[c]||[]).filter(k=>invSum(INV[k])>0);
+  const cols=[c].concat(eqs),vs=cols.map(k=>INV[k]||[]);
+  const th="font-size:10px;font-weight:600;text-align:right;color:#555;padding:0 0 3px 10px;word-break:break-all;max-width:90px;vertical-align:bottom";
+  let cab="";
+  if(eqs.length)cab="<tr><td></td>"+cols.map((k,j)=>"<td style='"+th+(j==0?";color:#1b7a3d":";color:#7a5200")+"'>"+k+(j==0?"<br>(este)":"")+"</td>").join("")+"<td style='"+th+"'>Suma</td></tr>";
   const filas=INV_ALM.map((a,i)=>{
-    const own=v[i]||0,eq=comb[i]-own,t=comb[i];
-    return "<tr style='"+(t>0?"":"color:#aaa")+"'><td style='padding:2px 10px 2px 0'>"+a+"</td>"+(eqs.length?"<td style='text-align:right'>"+own+"</td><td style='text-align:right'>"+eq+"</td>":"<td style='text-align:right;font-weight:"+(t>0?"700":"400")+"'>"+own+"</td>")+"</tr>";
+    const row=vs.map(x=>x[i]||0),t=row.reduce((s,x)=>s+x,0);
+    return "<tr style='"+(t>0?"":"color:#aaa")+"'><td style='padding:2px 10px 2px 0;white-space:nowrap'>"+a+"</td>"+row.map(x=>"<td style='text-align:right;padding-left:10px;"+(x>0?"font-weight:700":"")+"'>"+x+"</td>").join("")+(eqs.length?"<td style='text-align:right;padding-left:10px;font-weight:"+(t>0?"700":"400")+"'>"+t+"</td>":"")+"</tr>";
   }).join("");
-  const nota=eqs.length?"<div style='font-size:12px;color:#7a5200;margin-top:6px'>Equivalente: "+eqs.join(", ")+"</div>":"";
+  const tots=vs.map(x=>invSum(x));
+  const pie="<tr style='border-top:1px solid #ccc'><td style='padding-top:4px'><b>Total</b></td>"+(eqs.length?tots.map(x=>"<td style='text-align:right;padding:4px 0 0 10px'>"+x+"</td>").join("")+"<td style='text-align:right;padding:4px 0 0 10px'><b>"+invTot(c)+"</b></td>":"<td style='text-align:right;padding-top:4px'><b>"+invTot(c)+"</b></td>")+"</tr>";
   const p=document.createElement("div");p.id="inv-pop";
-  p.style.cssText="position:fixed;z-index:9999;background:#fff;border:1px solid #bbb;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.25);padding:10px 14px;font-size:13px;width:250px;box-sizing:border-box";
-  p.innerHTML="<div style='font-weight:700;margin-bottom:4px'>"+c+"</div><table style='border-collapse:collapse;width:100%;min-width:0;table-layout:auto'>"+(eqs.length?cab:"")+filas+"<tr style='border-top:1px solid #ccc'><td style='padding-top:4px'><b>Total</b></td><td style='text-align:right;padding-top:4px'"+(eqs.length?" colspan=2":"")+"><b>"+invTot(c)+"</b></td></tr></table>"+nota+"<div style='font-size:11px;color:#888;margin-top:6px'>Existencias al "+INV_FECHA+"</div>";
+  p.style.cssText="position:fixed;z-index:9999;background:#fff;border:1px solid #bbb;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.25);padding:10px 14px;font-size:13px;max-width:96vw;box-sizing:border-box";
+  p.innerHTML="<div style='font-weight:700;margin-bottom:4px'>"+c+"</div><table style='border-collapse:collapse;width:auto;min-width:0'>"+cab+filas+pie+"</table><div style='font-size:11px;color:#888;margin-top:6px'>Existencias al "+INV_FECHA+"</div>";
   document.body.appendChild(p);
   const r=el.getBoundingClientRect();
   p.style.left=Math.max(8,Math.min(r.left-20,window.innerWidth-p.offsetWidth-8))+"px";
